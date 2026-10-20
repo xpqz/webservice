@@ -114,3 +114,26 @@ test/smoke.sh
 - JSON key order: Jarvis re-encodes the result with `⎕JSON`, which writes keys alphabetically, so the order Postgres chose is lost. JSON key order has no meaning, so this was left as it is.
 
 **Commit:** `Labels endpoints`
+
+## Task 5: Issues
+
+**Did:** The issue endpoints: `GET/POST /issues`, `GET/PATCH /issues/{number}`, and the labels on an issue (`GET/POST /issues/{number}/labels`, `DELETE /issues/{number}/labels/{name}`). More of the work moved into Postgres, where it fits naturally:
+- a trigger (`issue_state_rules`) holds GitHub's rules for closing and reopening: closing sets `closed_at` and defaults `state_reason` to `completed`, and reopening clears `closed_at` and sets `reopened`;
+- `set_issue_labels(number, names, replace)` attaches labels by name, and changes nothing if any name is unknown;
+- `list_issues(state, labels, limit, offset)` and `list_labels(limit, offset)` return a whole page as one JSON array;
+- `update_issue(...)` changes only the fields that were sent.
+
+The APL handlers now do three things: read and check the request, call SQL, return the document. The only "business logic" left in APL is input validation (which `state` values are allowed, for example), and that is where your own rules would go.
+
+**Commands:**
+```bash
+docker compose down -v && docker compose up -d --build --wait     # -v: schema changed
+curl -s -X POST localhost:8080/issues -H 'Content-Type: application/json' -d '{"title":"⍳ fails on empty","labels":["bug"]}'
+curl -s -X PATCH localhost:8080/issues/1 -H 'Content-Type: application/json' -d '{"state":"closed"}'
+curl -s 'localhost:8080/issues?state=all&labels=bug&per_page=10'
+test/smoke.sh
+```
+
+**Broke:** nothing on the first run: the lessons from Task 4 (`⊂` around the SQL, CTEs around writes, `:If` instead of indexing) carried over.
+
+**Commit:** `Issues endpoints`

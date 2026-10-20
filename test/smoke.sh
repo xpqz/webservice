@@ -119,6 +119,121 @@ test_label_list() {
     expect_eq "label list per_page" "$(jqb length)" 1
 }
 
+# new_issue JSON -> sets NUM to the new issue's number
+new_issue() { req POST /issues "$1"; NUM=$(jqb .number); }
+new_label() { req POST /labels "{\"name\":\"$1\"}"; }
+
+TITLE="⍳⍴ café it's; --x"
+
+test_issue_create() {
+    new_issue "{\"title\":\"$TITLE\"}"
+    expect_eq "issue create status" "$STATUS" 201
+    expect_eq "issue title round-trips" "$(jqb .title)" "$TITLE"
+    expect_eq "issue state" "$(jqb .state)" open
+    expect_eq "issue body null" "$(jqb .body)" null
+    expect_eq "issue closed_at null" "$(jqb .closed_at)" null
+    expect_eq "issue state_reason null" "$(jqb .state_reason)" null
+    expect_eq "issue labels empty" "$(jq -c .labels <<<"$BODY")" "[]"
+    expect_eq "issue comments zero" "$(jqb .comments)" 0
+    expect_eq "issue created_at format" "$(jqb '.created_at|test("^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\dZ$")')" true
+    expect_eq "issue number is number" "$(jqb '.number|type')" number
+}
+
+test_issue_missing_title() {
+    req POST /issues '{"body":"b"}'
+    expect_eq "issue missing title status" "$STATUS" 422
+    expect_eq "issue missing title error" "$(jq -cS '.errors[0]' <<<"$BODY")" '{"code":"missing_field","field":"title","resource":"Issue"}'
+}
+
+test_issue_get() {
+    new_issue "{\"title\":\"get $RUN\",\"body\":\"some ⍝ body\"}"
+    req GET "/issues/$NUM"
+    expect_eq "issue get status" "$STATUS" 200
+    expect_eq "issue get title" "$(jqb .title)" "get $RUN"
+    expect_eq "issue get body" "$(jqb .body)" "some ⍝ body"
+    for bad in abc 0 99999999 -1 1.5; do
+        req GET "/issues/$bad"
+        expect_eq "issue get $bad status" "$STATUS" 404
+        expect_eq "issue get $bad message" "$(jqb .message)" "Not Found"
+    done
+}
+
+test_issue_update_fields() {
+    new_issue "{\"title\":\"old $RUN\"}"
+    req PATCH "/issues/$NUM" '{"title":"new title","body":"new body"}'
+    expect_eq "issue update status" "$STATUS" 200
+    expect_eq "issue update title" "$(jqb .title)" "new title"
+    expect_eq "issue update body" "$(jqb .body)" "new body"
+    req PATCH /issues/99999999 '{"title":"x"}'
+    expect_eq "issue update unknown" "$STATUS" 404
+}
+
+test_issue_close_reopen() {
+    new_issue "{\"title\":\"close $RUN\"}"
+    req PATCH "/issues/$NUM" '{"state":"closed"}'
+    expect_eq "close status" "$STATUS" 200
+    expect_eq "close state" "$(jqb .state)" closed
+    expect_eq "close reason defaults" "$(jqb .state_reason)" completed
+    expect_eq "close sets closed_at" "$(jqb '.closed_at != null')" true
+    req PATCH "/issues/$NUM" '{"state":"open"}'
+    expect_eq "reopen state" "$(jqb .state)" open
+    expect_eq "reopen reason" "$(jqb .state_reason)" reopened
+    expect_eq "reopen clears closed_at" "$(jqb .closed_at)" null
+    req PATCH "/issues/$NUM" '{"state":"closed","state_reason":"not_planned"}'
+    expect_eq "close not_planned" "$(jqb .state_reason)" not_planned
+    req PATCH "/issues/$NUM" '{"state":"bogus"}'
+    expect_eq "bad state status" "$STATUS" 422
+    expect_eq "bad state field" "$(jqb '.errors[0].field')" state
+    expect_eq "bad state code" "$(jqb '.errors[0].code')" invalid
+}
+
+test_issue_labels() {
+    new_label "l1-$RUN"; new_label "l2-$RUN"
+    new_issue "{\"title\":\"labels $RUN\",\"labels\":[\"l1-$RUN\"]}"
+    expect_eq "create with label" "$(jqb '.labels[0].name')" "l1-$RUN"
+    req POST "/issues/$NUM/labels" "{\"labels\":[\"L2-$RUN\"]}"
+    expect_eq "add label status" "$STATUS" 200
+    expect_eq "add label names" "$(jq -c '[.[].name]' <<<"$BODY")" "[\"l1-$RUN\",\"l2-$RUN\"]"
+    req GET "/issues/$NUM/labels"
+    expect_eq "list issue labels" "$(jqb length)" 2
+    req DELETE "/issues/$NUM/labels/l1-$RUN"
+    expect_eq "remove label status" "$STATUS" 200
+    expect_eq "remove label remaining" "$(jq -c '[.[].name]' <<<"$BODY")" "[\"l2-$RUN\"]"
+    req DELETE "/issues/$NUM/labels/l1-$RUN"
+    expect_eq "remove absent label" "$STATUS" 404
+    req PATCH "/issues/$NUM" '{"labels":[]}'
+    expect_eq "patch clears labels" "$(jq -c .labels <<<"$BODY")" "[]"
+    req POST /issues "{\"title\":\"x\",\"labels\":[\"missing-$RUN\"]}"
+    expect_eq "unknown label status" "$STATUS" 422
+    expect_eq "unknown label field" "$(jqb '.errors[0].field')" labels
+    req GET /issues/99999999/labels
+    expect_eq "labels of unknown issue" "$STATUS" 404
+}
+
+test_issue_list_filters() {
+    new_label "f-$RUN"
+    new_issue "{\"title\":\"f1 $RUN\",\"labels\":[\"f-$RUN\"]}"
+    new_issue "{\"title\":\"f2 $RUN\",\"labels\":[\"f-$RUN\"]}"
+    new_issue "{\"title\":\"f3 $RUN\",\"labels\":[\"f-$RUN\"]}"
+    req PATCH "/issues/$NUM" '{"state":"closed"}'
+    req GET "/issues?labels=f-$RUN"
+    expect_eq "list default open" "$(jqb length)" 2
+    expect_eq "list newest first" "$(jqb '.[0].title')" "f2 $RUN"
+    req GET "/issues?labels=f-$RUN&state=all"
+    expect_eq "list state all" "$(jqb length)" 3
+    req GET "/issues?labels=f-$RUN&state=closed"
+    expect_eq "list state closed" "$(jqb length)" 1
+    req GET "/issues?labels=f-$RUN&state=all&per_page=1&page=2"
+    expect_eq "list page 2 size" "$(jqb length)" 1
+    expect_eq "list page 2 item" "$(jqb '.[0].title')" "f2 $RUN"
+    req GET "/issues?state=all&per_page=1000"
+    expect_eq "list per_page capped" "$(jqb 'length <= 100')" true
+    req GET "/issues?labels=f-$RUN&page=abc"
+    expect_eq "list bad page is page 1" "$(jqb length)" 2
+    req GET "/issues?labels=f-$RUN,nope-$RUN"
+    expect_eq "list all labels must match" "$(jqb length)" 0
+}
+
 # nginx re-resolves workers every few seconds; wait until a request gets through
 wait_ready() {
     for _ in $(seq 30); do

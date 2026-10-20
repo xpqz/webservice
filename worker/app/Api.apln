@@ -15,7 +15,7 @@
 ⍝ ── Labels ──────────────────────────────────────────────────────────────
 
     ∇ r←ListLabels req
-      r←#.Db.Doc(⊂'SELECT coalesce(json_agg(doc ORDER BY lower(name) COLLATE "C"), ''[]'') FROM (SELECT doc, name FROM label_doc ORDER BY lower(name) COLLATE "C" LIMIT ',I,' OFFSET ',I,') page'),Page req
+      r←#.Db.Doc(⊂'SELECT list_labels(',I,', ',I,')'),Page req
     ∇
 
     ∇ r←GetLabel req
@@ -57,6 +57,88 @@
       r←#.Db.Doc('SELECT doc FROM label_doc WHERE lower(name) = lower(',T,')')name
     ∇
 
+⍝ ── Issues ──────────────────────────────────────────────────────────────
+
+    ∇ r←ListIssues req;q;state
+      q←req.QueryParams
+      state←q Text'state'
+      :If 0=≢state ⋄ state←'open' ⋄ :EndIf
+      r←#.Db.Doc(⊂'SELECT list_issues(',T,', ',T,', ',I,', ',I,')'),state(q Text'labels'),Page req
+    ∇
+
+    ∇ r←GetIssue req
+      r←Issue 0 Number req.PathParams.number
+      :If r≡⍬ ⋄ r←NotFound req ⋄ :EndIf
+    ∇
+
+    ∇ r←CreateIssue req;p;title;labels;n
+      p←req.Payload
+      title←p Text'title'
+      labels←p Json'labels'
+      :If 0=≢title ⋄ r←'Issue'Invalid req'title' 'missing_field' ⋄ →0 ⋄ :EndIf
+      :If 0<UnknownLabels labels ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0 ⋄ :EndIf
+      n←⊃#.Db.Do('INSERT INTO issues (title, body) VALUES (',T,', NULLIF(',T,', '''')) RETURNING number')title(p Text'body')
+      SetLabels n labels'true'
+      req.SetStatus 201
+      r←Issue n
+    ∇
+
+    ∇ r←UpdateIssue req;p;n;state;reason;labels
+      n←0 Number req.PathParams.number
+      p←req.Payload
+      state←p Text'state'
+      reason←p Text'state_reason'
+      labels←p Json'labels'
+      :If ~(⊂state)∊'' 'open' 'closed' ⋄ r←'Issue'Invalid req'state' 'invalid' ⋄ →0 ⋄ :EndIf
+      :If ~(⊂reason)∊'' 'completed' 'not_planned' 'duplicate' 'reopened' ⋄ r←'Issue'Invalid req'state_reason' 'invalid' ⋄ →0 ⋄ :EndIf
+      :If 0<UnknownLabels labels ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0 ⋄ :EndIf
+      :If 0=⊃⊃#.Db.Do('SELECT update_issue(',I,', ',T,', ',T,', ',T,', ',T,')')n(p Text'title')(p Text'body')state reason
+          r←NotFound req ⋄ →0
+      :EndIf
+      SetLabels n labels'true'
+      r←Issue n
+    ∇
+
+    ∇ r←ListIssueLabels req
+      r←Issue 0 Number req.PathParams.number
+      :If r≡⍬ ⋄ r←NotFound req ⋄ :Else ⋄ r←r.labels ⋄ :EndIf
+    ∇
+
+    ∇ r←AddIssueLabels req;n;labels
+      n←0 Number req.PathParams.number
+      labels←req.Payload Json'labels'
+      :If ⍬≡Issue n ⋄ r←NotFound req ⋄ →0 ⋄ :EndIf
+      :If 0<UnknownLabels labels ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0 ⋄ :EndIf
+      SetLabels n labels'false'
+      r←(Issue n).labels
+    ∇
+
+    ∇ r←RemoveIssueLabel req;n
+      n←0 Number req.PathParams.number
+      :If 0=≢#.Db.Do('WITH d AS (DELETE FROM issue_labels il USING labels l WHERE il.label_id = l.id AND il.issue_number = ',I,' AND lower(l.name) = lower(',T,') RETURNING 1) SELECT 1 FROM d')n req.PathParams.name
+          r←NotFound req ⋄ →0
+      :EndIf
+      r←(Issue n).labels
+    ∇
+
+    ∇ r←Issue n
+    ⍝ The issue's document, or ⍬ if there is no such issue
+      r←#.Db.Doc('SELECT doc FROM issue_doc WHERE number = ',I)n
+    ∇
+
+    ∇ n←UnknownLabels labels
+    ⍝ How many of the label names (JSON text) don't exist
+      n←0
+      →0/⍨0=≢labels
+      n←⊃⊃#.Db.Do('SELECT set_issue_labels(NULL, CAST(',T,' AS json), false)')labels
+    ∇
+
+    ∇ SetLabels(n labels replace)
+    ⍝ replace is 'true' (labels become exactly these) or 'false' (add these)
+      →0/⍨0=≢labels
+      {}#.Db.Do('SELECT set_issue_labels(',I,', CAST(',T,' AS json), ',replace,')')n labels
+    ∇
+
 ⍝ ── Helpers ─────────────────────────────────────────────────────────────
 
     ∇ v←ns Text name
@@ -68,9 +150,18 @@
       v←(((⍴⍴v)∊0 1)∧0=10|⎕DR v)/,v
     ∇
 
+    ∇ j←ns Json name
+    ⍝ A field from a JSON body, as JSON text again; '' when absent
+      j←''
+      →0/⍨9≠⎕NC'ns'
+      →0/⍨2≠⌊ns.⎕NC⊂name
+      j←1 ⎕JSON ns⍎name
+    ∇
+
     ∇ n←default Number text
     ⍝ A positive integer of up to 9 digits, or the default
       n←default
+      text←,text
       →0/⍨(0=≢text)∨(9<≢text)∨~∧/text∊⎕D
       n←⍎text
       :If n<1 ⋄ n←default ⋄ :EndIf

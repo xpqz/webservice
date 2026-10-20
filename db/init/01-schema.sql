@@ -45,6 +45,42 @@ END $$;
 CREATE TRIGGER issues_touch   BEFORE UPDATE ON issues   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 CREATE TRIGGER comments_touch BEFORE UPDATE ON comments FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
+-- GitHub's rules for closing and reopening, kept by the database:
+-- closing sets closed_at and defaults the reason to 'completed';
+-- reopening clears closed_at and sets the reason to 'reopened'.
+CREATE FUNCTION issue_state_rules() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.state = 'closed' AND OLD.state = 'open' THEN
+        NEW.closed_at := now();
+        IF NEW.state_reason IS NULL OR NEW.state_reason = 'reopened' THEN
+            NEW.state_reason := 'completed';
+        END IF;
+    ELSIF NEW.state = 'open' AND OLD.state = 'closed' THEN
+        NEW.closed_at := NULL;
+        NEW.state_reason := 'reopened';
+    END IF;
+    RETURN NEW;
+END $$;
+CREATE TRIGGER issues_state BEFORE UPDATE ON issues FOR EACH ROW EXECUTE FUNCTION issue_state_rules();
+
+-- Attach labels (a JSON array of names) to an issue, optionally replacing
+-- the current set. If any name is unknown nothing changes, and the result
+-- is the number of unknown names. Call with n NULL just to check names.
+CREATE FUNCTION set_issue_labels(n int, names json, replace boolean) RETURNS int
+LANGUAGE plpgsql AS $$
+DECLARE unknown int;
+BEGIN
+    SELECT count(*) INTO unknown FROM json_array_elements_text(names) x
+     WHERE NOT EXISTS (SELECT 1 FROM labels WHERE lower(name) = lower(x));
+    IF unknown > 0 OR n IS NULL THEN RETURN unknown; END IF;
+    IF replace THEN DELETE FROM issue_labels WHERE issue_number = n; END IF;
+    INSERT INTO issue_labels (issue_number, label_id)
+        SELECT n, id FROM labels
+         WHERE lower(name) IN (SELECT lower(x) FROM json_array_elements_text(names) x)
+        ON CONFLICT DO NOTHING;
+    RETURN 0;
+END $$;
+
 -- GitHub's timestamp format: 2026-10-20T14:03:12Z
 CREATE FUNCTION iso(t timestamptz) RETURNS text LANGUAGE sql IMMUTABLE AS $$
     SELECT to_char(t AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
@@ -82,3 +118,37 @@ SELECT id, issue_number,
            'created_at', iso(created_at), 'updated_at', iso(updated_at)
        ) AS doc
 FROM comments;
+
+-- One page of labels, sorted by name.
+CREATE FUNCTION list_labels(lim int, off int) RETURNS json LANGUAGE sql STABLE AS $$
+    SELECT coalesce(json_agg(doc ORDER BY lower(name) COLLATE "C"), '[]')
+    FROM (SELECT doc, name FROM label_doc
+          ORDER BY lower(name) COLLATE "C" LIMIT lim OFFSET off) page
+$$;
+
+-- One page of issues, newest first. want_state is 'open', 'closed' or 'all';
+-- want_labels is a comma-separated list of names that must all be present.
+CREATE FUNCTION list_issues(want_state text, want_labels text, lim int, off int) RETURNS json
+LANGUAGE sql STABLE AS $$
+    SELECT coalesce(json_agg(doc ORDER BY created_at DESC, number DESC), '[]')
+    FROM (SELECT doc, created_at, number FROM issue_doc d
+          WHERE want_state IN ('all', d.state)
+            AND NOT EXISTS (
+                SELECT 1 FROM unnest(string_to_array(NULLIF(want_labels, ''), ',')) wanted
+                WHERE NOT EXISTS (SELECT 1 FROM issue_labels il JOIN labels l ON l.id = il.label_id
+                                  WHERE il.issue_number = d.number AND lower(l.name) = lower(wanted)))
+          ORDER BY created_at DESC, number DESC LIMIT lim OFFSET off) page
+$$;
+
+-- Change the given fields of an issue; '' means "leave as it is".
+-- Returns 1 if the issue exists, 0 if not.
+CREATE FUNCTION update_issue(n int, new_title text, new_body text, new_state text, new_reason text) RETURNS int
+LANGUAGE sql AS $$
+    WITH u AS (
+        UPDATE issues SET title        = coalesce(NULLIF(new_title, ''), title),
+                          body         = coalesce(NULLIF(new_body, ''), body),
+                          state        = coalesce(NULLIF(new_state, ''), state),
+                          state_reason = coalesce(NULLIF(new_reason, ''), state_reason)
+        WHERE number = n RETURNING 1)
+    SELECT CAST(count(*) AS int) FROM u
+$$;

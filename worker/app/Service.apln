@@ -21,6 +21,13 @@
         'GET'     '/labels/{name}'   'GetLabel'
         'PATCH'   '/labels/{name}'   'UpdateLabel'
         'DELETE'  '/labels/{name}'   'DeleteLabel'
+        'GET'     '/issues'          'ListIssues'
+        'POST'    '/issues'          'CreateIssue'
+        'GET'     '/issues/{number}' 'GetIssue'
+        'PATCH'   '/issues/{number}' 'UpdateIssue'
+        'GET'     '/issues/{number}/labels'        'ListIssueLabels'
+        'POST'    '/issues/{number}/labels'        'AddIssueLabels'
+        'DELETE'  '/issues/{number}/labels/{name}' 'RemoveIssueLabel'
       ]
     ∇
 
