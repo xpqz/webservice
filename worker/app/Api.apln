@@ -1,0 +1,14 @@
+:Namespace Api
+⍝ Stark handlers: each takes the request and returns the response body.
+
+    ∇ r←Health req
+      {}#.Db.Do'SELECT 1'
+      r←(status:'ok')
+    ∇
+
+    ∇ r←fail FailBody req
+    ⍝ Stark's own 404/405 bodies, in GitHub's shape
+      r←(message:fail.body.detail)
+    ∇
+
+:EndNamespace

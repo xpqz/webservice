@@ -1,0 +1,38 @@
+:Namespace Db
+⍝ The only code that knows about SQAPL. Values always travel as bind
+⍝ variables; text is declared wide, (W) in and (Q) out, so Unicode survives.
+
+    ∇ Connect;Env;conn
+      'SQA'⎕CY'sqapl'
+      Env←{2 ⎕NQ'.' 'GetEnvironment' ⍵}
+      {}SQA.Init''
+      conn←'Driver={PostgreSQL Unicode};Server=',(Env'PGHOST'),';Port=',(Env'PGPORT'),';Database=',Env'PGDATABASE'
+      Check SQA.Connect'C1' ''(Env'PGPASSWORD')(Env'PGUSER')('DriverOptions'conn)
+    ∇
+
+    ∇ rows←Do args;r
+    ⍝ args: 'SQL with :<C1000(W): or :<I: markers' value1 value2 ...
+      r←SQA.Do(⊂'C1'),⊆args
+      Check r
+      rows←⊃3⊃r
+    ∇
+
+    ∇ ns←Doc args;rows
+    ⍝ For queries whose one column is a JSON document; ⍬ when no row
+      rows←Do args
+      ns←{0=≢⍵:⍬ ⋄ ⎕JSON⊃⍵}rows
+    ∇
+
+    ∇ Check r;state
+    ⍝ SQL errors are signalled with EN 500 and the SQLSTATE as message.
+    ⍝ A lost connection ends the process; compose restarts the worker.
+      →0/⍨0≥⊃r
+      state←(4=⊃r)⊃('APL',⍕2⊃r)(⊃2⊃r)
+      :If '08'≡2↑state
+          ⍞←'Lost database connection (',state,'), exiting',⎕UCS 10
+          ⎕OFF 1
+      :EndIf
+      ⎕SIGNAL⊂('EN' 500)('EM' 'SQL ERROR')('Message' state)
+    ∇
+
+:EndNamespace

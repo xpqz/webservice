@@ -25,3 +25,4 @@ ADD https://raw.githubusercontent.com/dyalog-labs/stark/${STARK_VERSION}/APLSour
 ADD https://raw.githubusercontent.com/dyalog-labs/stark/${STARK_VERSION}/APLSource/Jarvis.aplc /opt/stark/Jarvis.aplc
 
 COPY hello-db.apls /worker/
+COPY app/ /worker/app/

@@ -1,0 +1,21 @@
+:Namespace Service
+⍝ Routes and server settings. Stark maps each route to a handler in Api.
+
+    ∇ Start;router
+      #.Db.Connect
+      router←#.Stark.New ()
+      router.Handlers←#.Api
+      router.Info←(title:'Issues' ⋄ version:'1.0.0')
+      router.OnFailFn←'FailBody'
+      router.ThreadMode←1
+      router.Register Routes
+      router.Start 8080
+    ∇
+
+    ∇ r←Routes
+      r←[
+        'GET'  '/health'  'Health'
+      ]
+    ∇
+
+:EndNamespace

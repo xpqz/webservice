@@ -24,7 +24,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["dyalogscript", "/worker/hello-db.apls"]
+    command: ["dyalogscript", "/worker/app/Run.apls"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 2s
+      retries: 30
+
+  nginx:
+    image: nginx:1.29
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      worker:
+        condition: service_healthy
 
 volumes:
   pgdata:

@@ -1,0 +1,5 @@
+⍝ Boot one worker: load Stark (and the Jarvis server it builds on), then our code.
+⎕FIX'file:///opt/stark/Jarvis.aplc'
+⎕FIX'file:///opt/stark/Stark.aplc'
+⎕FIX¨'file:///worker/app/'∘,¨'Db.apln' 'Api.apln' 'Service.apln'
+Service.Start
