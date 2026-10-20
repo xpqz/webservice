@@ -153,3 +153,25 @@ test/smoke.sh
 **Broke:** nothing.
 
 **Commit:** `Comments endpoints`
+
+## Task 7: Scaling, X-Worker and recovery
+
+**Did:** Showed the load balancing at work. nginx adds an `X-Worker` header with the address of the worker that answered (`add_header X-Worker $upstream_addr`). That's one line of nginx config and no APL. Because nginx re-resolves the `worker` name every 5 seconds, scaling a running stack up or down needs no nginx restart. Recovery comes from standard pieces too: when Postgres goes away, a worker's next query fails with SQLSTATE `08S01`, `Db` ends the process, and compose's `restart: unless-stopped` starts a fresh worker that reconnects.
+
+**Commands:**
+```bash
+docker compose up -d --scale worker=3 --wait
+for i in 1 2 3 4 5 6; do curl -sI localhost:8080/health | grep X-Worker; done   # three different addresses
+docker compose up -d --scale worker=5 --wait     # nginx picks the new ones up by itself
+docker compose restart postgres                  # workers exit, restart and reconnect
+docker compose logs worker | grep 'Lost database connection'
+test/smoke.sh                                    # includes test_x_worker
+test/smoke.sh test_manual_rescale test_manual_postgres_restart   # these change the running stack
+```
+
+**Broke:**
+- The first restart test passed without testing anything. The requests it sent "after" the restart were answered before Postgres had gone down. The test now records Postgres's start time and waits until it changes, then requires 12 requests in a row to succeed.
+- After a Postgres restart, each worker's first request gets SQLSTATE `HY000` (a 500), and only the next one reports the lost connection (`08S01`) that makes the worker exit. So clients can see one error per worker during recovery. Accepted for a demo; a production service would check the connection before retrying.
+- Just after workers are replaced, nginx can take up to 5 seconds to see all of them again, so a test that requires requests to spread across workers can fail if it runs immediately.
+
+**Commit:** `Scale workers behind nginx and show which one answered`

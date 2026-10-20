@@ -270,6 +270,57 @@ test_comment_unknown_issue() {
     expect_eq "comment on unknown issue" "$STATUS" 404
 }
 
+# workers_seen N -> number of distinct X-Worker values over N requests
+workers_seen() {
+    for _ in $(seq "$1"); do
+        req GET /health
+        grep -i '^x-worker:' <<<"$HEADERS" | cut -d' ' -f2
+    done | sort -u | grep -c .
+}
+
+test_x_worker() {
+    req GET /health
+    expect_eq "x-worker header present" "$(grep -ci '^x-worker: ' <<<"$HEADERS")" 1
+    expect_eq "requests spread over workers" "$( [ "$(workers_seen 12)" -ge 2 ] && echo yes)" yes
+}
+
+# Not run by default: these change the running stack.
+test_manual_rescale() {
+    docker compose up -d --scale worker=1 --wait >/dev/null 2>&1; sleep 6
+    expect_eq "one worker" "$(workers_seen 8)" 1
+    docker compose up -d --scale worker=3 --wait >/dev/null 2>&1; sleep 6
+    expect_eq "three workers, nginx not restarted" "$(workers_seen 12)" 3
+}
+
+test_manual_postgres_restart() {
+    local pg before ok=""
+    pg=$(docker compose ps -q postgres)
+    before=$(docker inspect -f '{{.State.StartedAt}}' "$pg")
+    docker compose restart postgres >/dev/null 2>&1
+    for _ in $(seq 30); do      # `restart` can return before the container has restarted
+        [ "$(docker inspect -f '{{.State.StartedAt}}' "$pg")" != "$before" ] && break
+        sleep 1
+    done
+    expect_eq "postgres actually restarted" "$( [ "$(docker inspect -f '{{.State.StartedAt}}' "$pg")" != "$before" ] && echo yes)" yes
+    for _ in $(seq 60); do
+        req GET /health
+        if [ "$STATUS" == 200 ]; then
+            req POST /issues '{"title":"after restart"}'
+            [ "$STATUS" == 201 ] && { ok=yes; break; }
+        fi
+        sleep 1
+    done
+    expect_eq "service recovers after postgres restart" "$ok" yes
+    local good=0                # every worker back: 12 requests in a row succeed
+    for _ in $(seq 60); do
+        good=0
+        for _ in $(seq 12); do req GET /health; [ "$STATUS" == 200 ] && good=$((good+1)); done
+        [ "$good" == 12 ] && break
+        sleep 1
+    done
+    expect_eq "all workers healthy again" "$good" 12
+}
+
 # nginx re-resolves workers every few seconds; wait until a request gets through
 wait_ready() {
     for _ in $(seq 30); do
