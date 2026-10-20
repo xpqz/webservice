@@ -175,3 +175,35 @@ test/smoke.sh test_manual_rescale test_manual_postgres_restart   # these change 
 - Just after workers are replaced, nginx can take up to 5 seconds to see all of them again, so a test that requires requests to spread across workers can fail if it runs immediately.
 
 **Commit:** `Scale workers behind nginx and show which one answered`
+
+## Task 8: README and a clean run
+
+**Did:** Wrote `README.md`: what this is, the Dyalog licence notice (placed before any build command), how to run it, example calls, the API table, known limitations, and a map of the files. Then checked the README from nothing: deleted the images and the data and followed it step by step.
+
+**Commands:**
+```bash
+docker compose down -v --rmi local                       # no images, no data
+docker compose up -d --build --scale worker=3 --wait
+test/smoke.sh                                            # failures: 0
+```
+
+**Broke:** nothing. Raw `curl` output shows non-ASCII as JSON escapes (`⍳` for `⍳`) because Jarvis escapes everything above ASCII. That's valid JSON, and the README says to pipe through `jq`.
+
+## Shape of the code
+
+How much of the system is APL:
+
+| File | Lines | Of which code |
+|------|------:|------:|
+| `worker/app/Api.apln` (handlers) | 224 | 144 |
+| `worker/app/Service.apln` (route table) | 36 | 30 |
+| `worker/app/Db.apln` (SQAPL) | 38 | 23 |
+| `worker/app/Run.apls` (boot) | 5 | 4 |
+| `db/init/01-schema.sql` | 161 | 130 |
+| `nginx/nginx.conf` | 20 | 14 |
+| `compose.yaml` | 45 | 45 |
+| `worker/Dockerfile` | 28 | 22 |
+
+About 200 lines of APL, against hundreds of thousands of lines of Postgres, nginx, Docker, unixODBC and Jarvis that someone else wrote and maintains. Most of the APL is input checking and calls of the form "this SQL, with these values".
+
+**Commit:** `README`
