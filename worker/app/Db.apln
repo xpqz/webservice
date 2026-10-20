@@ -19,7 +19,7 @@
 
     ∇ ns←Doc args;rows
     ⍝ For queries whose one column is a JSON document; ⍬ when no row
-      rows←Do args
+      rows←Do(⊂(⊃⊆args),' :>C1000000(Q):'),1↓⊆args
       ns←{0=≢⍵:⍬ ⋄ ⎕JSON⊃⍵}rows
     ∇
 
@@ -27,7 +27,7 @@
     ⍝ SQL errors are signalled with EN 500 and the SQLSTATE as message.
     ⍝ A lost connection ends the process; compose restarts the worker.
       →0/⍨0≥⊃r
-      state←(4=⊃r)⊃('APL',⍕2⊃r)(⊃2⊃r)
+      state←{4=⊃⍵:⊃2⊃⍵ ⋄ 'APL',⍕2⊃⍵}r
       :If '08'≡2↑state
           ⍞←'Lost database connection (',state,'), exiting',⎕UCS 10
           ⎕OFF 1
