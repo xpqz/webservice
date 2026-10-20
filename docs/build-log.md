@@ -42,3 +42,26 @@ ERROR 4 SQLSTATE 42P01
 - `SQA.Do` returns `rc cursor (⊂matrix) status`. One `⊃` too many and you're looking at the first character of the first cell.
 
 **Commit:** `Worker image talks to Postgres through SQAPL`
+
+## Task 2: Schema
+
+**Did:** Ported the skis schema to Postgres in one file, `db/init/01-schema.sql`, which the official `postgres` image runs automatically on an empty database (anything in `/docker-entrypoint-initdb.d`). Four tables (`issues`, `labels`, `issue_labels`, `comments`), a trigger that keeps `updated_at` current, and three views (`issue_doc`, `label_doc`, `comment_doc`) that build each GitHub-shaped JSON document with `json_build_object`. Timestamp formatting, label lists and comment counts all happen here, so the APL side never shapes a response.
+
+Dropped from skis: issue `type`, soft delete, issue links and full-text search, since GitHub's Issues API has no simple equivalent. `state_reason` follows GitHub (`completed`, `not_planned`, `duplicate`, `reopened`).
+
+**Commands:**
+```bash
+docker compose down -v                  # -v: drop the data volume so the init script runs again
+docker compose up -d --wait postgres
+docker compose exec postgres psql -U issues -d issues -c "INSERT INTO issues (title) VALUES ('x')"
+docker compose exec postgres psql -U issues -d issues -tA -c "SELECT doc FROM issue_doc"
+```
+Expected:
+```
+{"number" : 1, "title" : "x", "body" : null, "state" : "open", "state_reason" : null, "labels" : [], "comments" : 0, "created_at" : "2026-10-20T15:49:41Z", ...}
+```
+The constraints do the validation work as well: inserting labels `Bug` and `bug` fails (case-insensitive unique index), and closing an issue without a `closed_at` fails a CHECK.
+
+**Broke:** nothing.
+
+**Commit:** `Postgres schema for issues, labels and comments`
