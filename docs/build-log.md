@@ -207,3 +207,23 @@ How much of the system is APL:
 About 200 lines of APL, against hundreds of thousands of lines of Postgres, nginx, Docker, unixODBC and Jarvis that someone else wrote and maintains. Most of the APL is input checking and calls of the form "this SQL, with these values".
 
 **Commit:** `README`
+
+## Task 9: What a reviewer found
+
+**Did:** A fresh reviewer tried inputs the tests never sent, and found the service was too trusting. Each problem below got a failing test in `test/smoke.sh` first (`test_null_fields`, `test_wrong_types`, `test_too_long`, `test_large_list`), then a fix.
+- **JSON `null` corrupted data.** `{"title":null}` set the title to four spaces. Jarvis reads JSON `null` as `⊂'null'` (and `true` as `⊂'true'`), not `⎕NULL`. Filtering that down to "no text" left an empty *nested* vector, which SQAPL bound as four blanks. `Api.Text` now treats `⊂'null'` as absent and always returns a character vector.
+- **Wrong types gave a 500 or were ignored.** `{"body":5}`, `{"labels":"bug"}` and `{"labels":{"a":1}}` failed deep inside SQL. `Text` and `Json` now check the type and call `BadField`, which signals `EN 422`. The error hook turns that into GitHub's validation error for the field. One small hook replaces a check in every handler.
+- **Over-long text gave a 500.** Text over GitHub's 65,536-character limit is now a `422`, before it reaches the bind variable (which has a fixed width).
+- **A big list broke the list endpoint permanently.** A page of large issues exceeded the 1,000,000-character output declaration. SQAPL cut it short with only a warning (`rc ¯1`), and `⎕JSON` then failed on the partial text. Truncation is now an error, the cap is 10,000,000 characters (100 issues × 65,536 fits), and `MaxRows 1` stops SQAPL reserving that much for many rows at once.
+
+**Left as limitations** (in the README): emoji are silently dropped; a label containing `/` can't be reached by name, because Jarvis decodes `%2F` before Stark routes; a Postgres restart costs a few seconds of errors.
+
+**Commands:**
+```bash
+docker compose up -d --build --scale worker=3 --wait
+curl -s -X PATCH localhost:8080/issues/1 -H 'Content-Type: application/json' -d '{"body":5}'
+# {"errors":[{"code":"invalid","field":"body","resource":"Issue"}],"message":"Validation Failed"}
+test/smoke.sh
+```
+
+**Commit:** `Validate request fields like GitHub does`

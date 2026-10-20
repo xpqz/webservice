@@ -60,7 +60,7 @@ Other things to try:
 
 ```bash
 docker compose up -d --scale worker=5 --wait   # more workers; nginx finds them by itself
-docker compose restart postgres                # workers reconnect on their own
+docker compose restart postgres                # a few seconds of errors, then workers reconnect on their own
 docker compose logs worker
 docker compose down -v                         # stop and delete the data
 ```
@@ -80,7 +80,9 @@ URLs, fields and status codes follow [GitHub's Issues REST API](https://docs.git
 | GET, PATCH, DELETE | `/labels/{name}` |
 
 Known limitations:
-- Text outside Unicode's Basic Multilingual Plane, such as emoji, can't be stored. APL symbols and accented letters are fine.
+- Characters outside Unicode's Basic Multilingual Plane, such as emoji, are silently dropped (SQAPL passes text as UCS-2). APL symbols and accented letters are fine.
+- A label whose name contains `/` can be created but not reached by name in a URL: Jarvis decodes `%2F` before Stark matches routes.
+- While Postgres restarts, requests fail for a few seconds (500s and nginx 502s) until every worker has restarted and reconnected.
 - JSON keys come back in alphabetical order.
 
 ## Where things are

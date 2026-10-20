@@ -160,20 +160,30 @@
 ⍝ ── Helpers ─────────────────────────────────────────────────────────────
 
     ∇ v←ns Text name
-    ⍝ A text field from a JSON body or query string; '' when absent, null or not text
+    ⍝ A text field from a JSON body or query string: '' when absent or null.
+    ⍝ A value that isn't text, or is longer than GitHub allows, is a 422.
       v←''
       →0/⍨9≠⎕NC'ns'
-      →0/⍨2≠⌊ns.⎕NC⊂name
+      →0/⍨0=⌊ns.⎕NC⊂name
       v←ns⍎name
-      v←(((⍴⍴v)∊0 1)∧0=10|⎕DR v)/,v
+      :If v≡⊂'null' ⋄ v←'' ⋄ →0 ⋄ :EndIf      ⍝ how Jarvis reads JSON null
+      :If (1<≢⍴v)∨(0≠10|⎕DR v)∨65536<≢v ⋄ BadField name ⋄ :EndIf
+      v←'',,v
     ∇
 
-    ∇ j←ns Json name
-    ⍝ A field from a JSON body, as JSON text again; '' when absent
+    ∇ j←ns Json name;v
+    ⍝ A field that must be an array of strings, as JSON text; '' when absent
       j←''
       →0/⍨9≠⎕NC'ns'
-      →0/⍨2≠⌊ns.⎕NC⊂name
-      j←1 ⎕JSON ns⍎name
+      →0/⍨0=⌊ns.⎕NC⊂name
+      v←ns⍎name
+      :If ~(1=≢⍴v)∧(v≡⍬)∨(326=⎕DR v)∧∧/{(1=≢⍴⍵)∧0=10|⎕DR ⍵}¨v ⋄ BadField name ⋄ :EndIf
+      j←1 ⎕JSON v
+    ∇
+
+    ∇ BadField name
+    ⍝ Ends the request with a 422 on this field (see ServerError)
+      ⎕SIGNAL⊂('EN' 422)('Message' name)
     ∇
 
     ∇ n←default Number text
@@ -210,8 +220,15 @@
       r.errors←,⊂e
     ∇
 
-    ∇ r←err ServerError req
-    ⍝ Any error in a handler: log it for `docker compose logs`, answer 500
+    ∇ r←err ServerError req;resource
+    ⍝ A bad field (EN 422, from BadField): GitHub's validation error.
+    ⍝ Any other error in a handler: log it for `docker compose logs`, answer 500.
+      :If 422=err.EN
+          resource←'Issue'
+          :If '/labels'≡7↑req.Route ⋄ resource←'Label' ⋄ :EndIf
+          :If ∨/'/comments'⍷req.Route ⋄ resource←'IssueComment' ⋄ :EndIf
+          r←resource Invalid req err.Message'invalid' ⋄ →0
+      :EndIf
       ⍞←'ERROR ',req.Method,' ',req.Endpoint,': ',err.EM,' ',err.Message,' ',(⍕err.EN),⎕UCS 10
       r←(message:'Server Error')
     ∇

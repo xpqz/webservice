@@ -270,6 +270,62 @@ test_comment_unknown_issue() {
     expect_eq "comment on unknown issue" "$STATUS" 404
 }
 
+# A JSON string of n characters
+long_text() { python3 -c "import sys; print('x'*int(sys.argv[1]))" "$1"; }
+
+test_null_fields() {
+    new_issue "{\"title\":\"nulls $RUN\",\"body\":null}"
+    expect_eq "create body null stays null" "$(jqb .body)" null
+    req PATCH "/issues/$NUM" '{"title":null}'
+    expect_eq "patch title null keeps title" "$(jqb .title)" "nulls $RUN"
+    req POST /labels "{\"name\":\"nl-$RUN\",\"color\":null,\"description\":null}"
+    expect_eq "label null color defaults" "$(jqb .color)" ededed
+    expect_eq "label null description" "$(jqb .description)" null
+    req PATCH "/labels/nl-$RUN" '{"new_name":null}'
+    expect_eq "label null new_name keeps name" "$(jqb .name)" "nl-$RUN"
+}
+
+test_wrong_types() {
+    new_issue "{\"title\":\"types $RUN\"}"
+    req PATCH "/issues/$NUM" '{"body":5}'
+    expect_eq "number body status" "$STATUS" 422
+    expect_eq "number body field" "$(jqb '.errors[0].field')" body
+    req PATCH "/issues/$NUM" '{"body":["a"]}'
+    expect_eq "array body status" "$STATUS" 422
+    req POST /labels "{\"name\":\"wt-$RUN\",\"color\":5}"
+    expect_eq "number color status" "$STATUS" 422
+    expect_eq "number color field" "$(jqb '.errors[0].field')" color
+    for bad in '"bug"' 5 null '{"a":1}'; do
+        req POST /issues "{\"title\":\"t\",\"labels\":$bad}"
+        expect_eq "labels $bad status" "$STATUS" 422
+        expect_eq "labels $bad field" "$(jqb '.errors[0].field')" labels
+        req POST "/issues/$NUM/labels" "{\"labels\":$bad}"
+        expect_eq "add labels $bad status" "$STATUS" 422
+    done
+}
+
+test_too_long() {
+    req POST /issues "{\"title\":\"t\",\"body\":\"$(long_text 65537)\"}"
+    expect_eq "body over 65536 status" "$STATUS" 422
+    expect_eq "body over 65536 field" "$(jqb '.errors[0].field')" body
+    req POST /issues "{\"title\":\"t\",\"body\":\"$(long_text 150000)\"}"
+    expect_eq "body 150000 status" "$STATUS" 422
+    req POST /issues "{\"title\":\"long ok $RUN\",\"body\":\"$(long_text 65536)\"}"
+    expect_eq "body of 65536 accepted" "$STATUS" 201
+    expect_eq "body of 65536 stored" "$(jqb '.body|length')" 65536
+}
+
+test_large_list() {
+    new_label "big-$RUN"
+    local b; b=$(long_text 65536)
+    for i in $(seq 18); do
+        req POST /issues "{\"title\":\"big $i\",\"body\":\"$b\",\"labels\":[\"big-$RUN\"]}"
+    done
+    req GET "/issues?labels=big-$RUN"
+    expect_eq "large list status" "$STATUS" 200
+    expect_eq "large list count" "$(jqb length)" 18
+}
+
 # workers_seen N -> number of distinct X-Worker values over N requests
 workers_seen() {
     for _ in $(seq "$1"); do
