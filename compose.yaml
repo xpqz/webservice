@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: issues
+      POSTGRES_USER: issues
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-issues}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "issues", "-d", "issues"]
+      interval: 2s
+      retries: 30
+
+  worker:
+    build: ./worker
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: issues
+      PGUSER: issues
+      PGPASSWORD: ${POSTGRES_PASSWORD:-issues}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["dyalogscript", "/worker/hello-db.apls"]
+
+volumes:
+  pgdata:
