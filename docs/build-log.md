@@ -137,3 +137,19 @@ test/smoke.sh
 **Broke:** nothing on the first run: the lessons from Task 4 (`⊂` around the SQL, CTEs around writes, `:If` instead of indexing) carried over.
 
 **Commit:** `Issues endpoints`
+
+## Task 6: Comments
+
+**Did:** `GET/POST /issues/{number}/comments`. It's the same pattern again: check that the issue exists and that the body is present, `INSERT … RETURNING id`, then return the `comment_doc` document. Listing is one more SQL function, `list_comments(number, limit, offset)`, oldest first. The issue's `comments` count comes from the `issue_doc` view, so it was already right.
+
+**Commands:**
+```bash
+docker compose down -v && docker compose up -d --build --wait
+curl -s -X POST localhost:8080/issues/1/comments -H 'Content-Type: application/json' -d '{"body":"⍝ reproduced"}'
+curl -s localhost:8080/issues/1/comments
+test/smoke.sh
+```
+
+**Broke:** nothing.
+
+**Commit:** `Comments endpoints`

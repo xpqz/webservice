@@ -28,6 +28,8 @@
         'GET'     '/issues/{number}/labels'        'ListIssueLabels'
         'POST'    '/issues/{number}/labels'        'AddIssueLabels'
         'DELETE'  '/issues/{number}/labels/{name}' 'RemoveIssueLabel'
+        'GET'     '/issues/{number}/comments'      'ListComments'
+        'POST'    '/issues/{number}/comments'      'CreateComment'
       ]
     ∇
 

@@ -234,6 +234,42 @@ test_issue_list_filters() {
     expect_eq "list all labels must match" "$(jqb length)" 0
 }
 
+test_comment_create() {
+    new_issue "{\"title\":\"comments $RUN\"}"
+    req POST "/issues/$NUM/comments" '{"body":"⍝ first, it'"'"'s fine"}'
+    expect_eq "comment create status" "$STATUS" 201
+    expect_eq "comment body" "$(jqb .body)" "⍝ first, it's fine"
+    expect_eq "comment id is number" "$(jqb '.id|type')" number
+    expect_eq "comment created_at format" "$(jqb '.created_at|test("Z$")')" true
+    req GET "/issues/$NUM"
+    expect_eq "issue counts comment" "$(jqb .comments)" 1
+}
+
+test_comment_missing_body() {
+    new_issue "{\"title\":\"comments $RUN\"}"
+    req POST "/issues/$NUM/comments" '{}'
+    expect_eq "comment missing body status" "$STATUS" 422
+    expect_eq "comment missing body error" "$(jq -cS '.errors[0]' <<<"$BODY")" '{"code":"missing_field","field":"body","resource":"IssueComment"}'
+}
+
+test_comment_list() {
+    new_issue "{\"title\":\"comments $RUN\"}"
+    req POST "/issues/$NUM/comments" '{"body":"one"}'
+    req POST "/issues/$NUM/comments" '{"body":"two"}'
+    req GET "/issues/$NUM/comments"
+    expect_eq "comment list status" "$STATUS" 200
+    expect_eq "comment list order" "$(jq -c '[.[].body]' <<<"$BODY")" '["one","two"]'
+    req GET "/issues/$NUM/comments?per_page=1&page=2"
+    expect_eq "comment list page 2" "$(jq -c '[.[].body]' <<<"$BODY")" '["two"]'
+}
+
+test_comment_unknown_issue() {
+    req GET /issues/99999999/comments
+    expect_eq "comments of unknown issue" "$STATUS" 404
+    req POST /issues/99999999/comments '{"body":"x"}'
+    expect_eq "comment on unknown issue" "$STATUS" 404
+}
+
 # nginx re-resolves workers every few seconds; wait until a request gets through
 wait_ready() {
     for _ in $(seq 30); do

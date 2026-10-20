@@ -152,3 +152,10 @@ LANGUAGE sql AS $$
         WHERE number = n RETURNING 1)
     SELECT CAST(count(*) AS int) FROM u
 $$;
+
+-- One page of an issue's comments, oldest first.
+CREATE FUNCTION list_comments(n int, lim int, off int) RETURNS json LANGUAGE sql STABLE AS $$
+    SELECT coalesce(json_agg(doc ORDER BY id), '[]')
+    FROM (SELECT doc, id FROM comment_doc WHERE issue_number = n
+          ORDER BY id LIMIT lim OFFSET off) page
+$$;

@@ -139,6 +139,24 @@
       {}#.Db.Do('SELECT set_issue_labels(',I,', CAST(',T,' AS json), ',replace,')')n labels
     ∇
 
+⍝ ── Comments ────────────────────────────────────────────────────────────
+
+    ∇ r←ListComments req;n
+      n←0 Number req.PathParams.number
+      :If ⍬≡Issue n ⋄ r←NotFound req ⋄ →0 ⋄ :EndIf
+      r←#.Db.Doc(⊂'SELECT list_comments(',I,', ',I,', ',I,')'),n,Page req
+    ∇
+
+    ∇ r←CreateComment req;n;body;id
+      n←0 Number req.PathParams.number
+      body←req.Payload Text'body'
+      :If ⍬≡Issue n ⋄ r←NotFound req ⋄ →0 ⋄ :EndIf
+      :If 0=≢body ⋄ r←'IssueComment'Invalid req'body' 'missing_field' ⋄ →0 ⋄ :EndIf
+      id←⊃#.Db.Do('INSERT INTO comments (issue_number, body) VALUES (',I,', ',T,') RETURNING id')n body
+      req.SetStatus 201
+      r←#.Db.Doc('SELECT doc FROM comment_doc WHERE id = ',I)id
+    ∇
+
 ⍝ ── Helpers ─────────────────────────────────────────────────────────────
 
     ∇ v←ns Text name
