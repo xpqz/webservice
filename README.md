@@ -87,6 +87,10 @@ Known limitations:
 - While Postgres restarts, requests fail for a few seconds (500s and nginx 502s) until every worker has restarted and reconnected.
 - JSON keys come back in alphabetical order.
 
+## Design
+
+The design document (top-down, with diagrams and a step-through of a request) is at <https://claude.ai/artifact/RwxjGTsoWMpSHpcCwsfDFD> (private). A copy is in [`docs/design.html`](docs/design.html): open it in a browser.
+
 ## Where things are
 
 | Path | What |
@@ -101,4 +105,5 @@ Known limitations:
 | `worker/hello-db.apls` | a first check that APL can reach Postgres |
 | `console/` | the browser client: `api.js` (every REST call), `app.js` (Vue components) |
 | `test/smoke.sh` | end-to-end tests |
+| `docs/design.html` | the design document |
 | `docs/build-log.md` | how it was built, step by step, including what went wrong |
