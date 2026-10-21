@@ -146,7 +146,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 </nav>
 
 <main>
-<p class="meta">xpqz/webservice · main @ 83938be · 2026-10-21</p>
+<p class="meta">xpqz/webservice · main @ b1ebeef · 2026-10-21</p>
 <h1>Issues Service Design</h1>
 <p class="lede">A GitHub-Issues-shaped REST service: Postgres at the bottom, a pool of Dyalog workers on Stark in the middle, nginx in front, and a Vue console as one client among many. This is the map of how it fits together and why it is built the way it is.</p>
 
@@ -154,7 +154,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   <div role="listitem"><b>4</b><span>compose services, workers scaled to N</span></div>
   <div role="listitem"><b>15</b><span>routes, all copied from GitHub</span></div>
   <div role="listitem"><b>~210</b><span>lines of APL code in the service</span></div>
-  <div role="listitem"><b>150</b><span>end-to-end checks in <code>smoke.sh</code></span></div>
+  <div role="listitem"><b>167</b><span>end-to-end checks in <code>smoke.sh</code></span></div>
 </div>
 
 <!-- 1 -->
@@ -326,7 +326,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
       <rect x="20" y="20" width="470" height="44" rx="7" fill="var(--soft)" stroke="var(--accent)"/>
       <text x="36" y="47" fill="var(--accent)" font-weight="600">Run.apls</text><text x="140" y="47" fill="var(--muted)" font-size="12">⎕FIX Jarvis, Stark, Db, Api, Service · Service.Start</text>
       <rect x="20" y="74" width="470" height="44" rx="7" fill="var(--soft)" stroke="var(--accent)"/>
-      <text x="36" y="101" fill="var(--accent)" font-weight="600">Service</text><text x="140" y="101" fill="var(--muted)" font-size="12">route table (15 rows) · router settings · Start</text>
+      <text x="36" y="101" fill="var(--accent)" font-weight="600">Service</text><text x="140" y="101" fill="var(--muted)" font-size="12">route table + OpenAPI metadata (APLAN) · Start</text>
       <rect x="20" y="128" width="470" height="70" rx="7" fill="var(--soft)" stroke="var(--accent)"/>
       <text x="36" y="155" fill="var(--accent)" font-weight="600">Api</text><text x="140" y="155" fill="var(--muted)" font-size="12">handlers: Health · labels ×5 · issues ×7 · comments ×2</text>
       <text x="140" y="178" fill="var(--muted)" font-size="12">helpers: Text Json Number Page Invalid NotFound ServerError</text>
@@ -567,7 +567,11 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   <thead><tr><th>Method</th><th>Path</th><th>Handler</th><th>SQL</th><th>Success</th></tr></thead>
   <tbody></tbody>
 </table></div>
-<p class="col">Query parameters on <code>GET /issues</code>: <code>state</code> (open default, closed, all), <code>labels</code> (comma-separated, all must match), <code>sort</code> (created default, updated), <code>per_page</code>, <code>page</code>. Stark also serves <code>/openapi.json</code>, generated from the route table.</p>
+<p class="col">Query parameters on <code>GET /issues</code>: <code>state</code> (open default, closed, all), <code>labels</code> (comma-separated, all must match), <code>sort</code> (created default, updated), <code>per_page</code>, <code>page</code>.</p>
+<h3>The route table is the API description</h3>
+<p class="col">Each row of <code>Service.Routes</code> carries a fourth item, an APLAN namespace that Stark merges into that operation's entry in <code>/openapi.json</code>: summary, parameters, request body, and responses in Stark's <code>(status schema)</code> shorthand. The shapes are APLAN variables at the top of <code>Service.apln</code>, each written once and reused.</p>
+<pre>'GET' '/issues/{number}' 'GetIssue' (summary: 'Get an issue' ⋄ parameters: (Number ⋄) ⋄ responses: (200 Issue ⋄ 404 Error))</pre>
+<p class="col">Because the spec is generated from the same table that does the routing, a route cannot exist without its description. Stark does not check traffic against the schemas, so <code>test_responses_match_spec</code> does: it compares real responses for 11 operations with their schemas (fields, types, nullability). Removing one field from <code>Issue</code> fails three checks.</p>
 </section>
 
 <!-- 10 -->
@@ -642,13 +646,14 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 <!-- 12 -->
 <section id="tests">
 <h2><span class="n">12</span>Tests</h2>
-<p class="col"><code>test/smoke.sh</code> is bash, curl and jq against nginx, the way a client sees the service. It waits until <code>/health</code> answers through nginx, then runs every <code>test_*</code> function (or the ones named on the command line). Each run tags its data with a unique suffix, so tests never need an empty database. 150 checks currently pass.</p>
+<p class="col"><code>test/smoke.sh</code> is bash, curl and jq against nginx, the way a client sees the service. It waits until <code>/health</code> answers through nginx, then runs every <code>test_*</code> function (or the ones named on the command line). Each run tags its data with a unique suffix, so tests never need an empty database. 167 checks currently pass.</p>
 <div class="tbl"><table>
   <thead><tr><th>Group</th><th>Covers</th></tr></thead>
   <tbody>
     <tr><td>skeleton</td><td>health, unknown route body, OpenAPI title</td></tr>
     <tr><td>labels · issues · comments</td><td>every route's happy path, 404s for bad ids, 422 shapes, case-insensitive names, close/reopen rules, label filters, paging, <code>sort=updated</code></td></tr>
     <tr><td>review-driven</td><td>explicit <code>null</code>, wrong types, over-long text, a page of 18 × 64 KB issues</td></tr>
+    <tr><td>spec</td><td><code>/openapi.json</code> content (summaries, parameters, status codes), and real responses checked against its schemas</td></tr>
     <tr><td>stack</td><td>requests spread over workers, console page served, CORS preflight, X-Worker exposed</td></tr>
     <tr><td><code>test_manual_*</code></td><td>live rescale and Postgres restart; they change the running stack, so they only run when named</td></tr>
   </tbody>
@@ -704,12 +709,12 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
     <tr><td><code>db/init/01-schema.sql</code></td><td>165</td><td>Tables, triggers, views, functions</td></tr>
     <tr><td><code>worker/Dockerfile</code></td><td>28</td><td>Debian + Dyalog .deb + ODBC + Stark</td></tr>
     <tr><td><code>worker/app/Run.apls</code></td><td>5</td><td>Boot</td></tr>
-    <tr><td><code>worker/app/Service.apln</code></td><td>36</td><td>Route table, router settings</td></tr>
+    <tr><td><code>worker/app/Service.apln</code></td><td>138</td><td>Route table with OpenAPI metadata (APLAN), router settings</td></tr>
     <tr><td><code>worker/app/Api.apln</code></td><td>241</td><td>Handlers and helpers</td></tr>
     <tr><td><code>worker/app/Db.apln</code></td><td>38</td><td>SQAPL wrapper</td></tr>
     <tr><td><code>worker/hello-db.apls</code></td><td>21</td><td>First plumbing check, kept for the post</td></tr>
     <tr><td><code>console/</code></td><td>352</td><td>Vue client: index.html, api.js, app.js, style.css</td></tr>
-    <tr><td><code>test/smoke.sh</code></td><td>433</td><td>End-to-end tests</td></tr>
+    <tr><td><code>test/smoke.sh</code></td><td>491</td><td>End-to-end tests</td></tr>
     <tr><td><code>docs/build-log.md</code></td><td></td><td>Step-by-step record for the post, including every failure</td></tr>
   </tbody>
 </table></div>
