@@ -1,36 +1,138 @@
 :Namespace Service
-⍝ Routes and server settings. Stark maps each route to a handler in Api.
+⍝ Routes and server settings. Stark maps each route to a handler in Api,
+⍝ and builds /openapi.json from the same table, so the published API
+⍝ description cannot drift from the routing.
+
+⍝ ── Shapes (OpenAPI schemas, as APLAN) ──────────────────────────────────
+
+    Text←(type: 'string')
+    NullText←(type: 'string' ⋄ nullable: ⊂'true')
+    Int←(type: 'integer')
+    Time←(type: 'string' ⋄ format: 'date-time')
+    NullTime←(type: 'string' ⋄ format: 'date-time' ⋄ nullable: ⊂'true')
+    Names←(type: 'array' ⋄ items: Text)
+
+    Label←(
+        type: 'object'
+        properties: (
+            id: Int
+            name: Text
+            description: NullText
+            color: (type: 'string' ⋄ example: 'd73a4a')
+        )
+    )
+    Labels←(type: 'array' ⋄ items: Label)
+
+    Issue←(
+        type: 'object'
+        properties: (
+            number: Int
+            title: Text
+            body: NullText
+            state: (type: 'string' ⋄ enum: 'open' 'closed')
+            state_reason: (type: 'string' ⋄ nullable: ⊂'true' ⋄ enum: 'completed' 'not_planned' 'duplicate' 'reopened')
+            labels: Labels
+            comments: Int
+            created_at: Time
+            updated_at: Time
+            closed_at: NullTime
+        )
+    )
+    Issues←(type: 'array' ⋄ items: Issue)
+
+    Comment←(
+        type: 'object'
+        properties: (
+            id: Int
+            body: Text
+            created_at: Time
+            updated_at: Time
+        )
+    )
+    Comments←(type: 'array' ⋄ items: Comment)
+
+    Error←(type: 'object' ⋄ properties: (message: Text))
+    Invalid←(
+        type: 'object'
+        properties: (
+            message: Text
+            errors: (type: 'array' ⋄ items: (type: 'object' ⋄ properties: (resource: Text ⋄ field: Text ⋄ code: Text)))
+        )
+    )
+    Health←(type: 'object' ⋄ properties: (status: Text))
+
+⍝ ── Request bodies ──────────────────────────────────────────────────────
+
+    NewIssue←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
+        type: 'object'
+        required: ('title' ⋄)
+        properties: (title: Text ⋄ body: Text ⋄ labels: Names)
+    ))))
+    IssueChange←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
+        type: 'object'
+        properties: (title: Text ⋄ body: Text ⋄ state: (Issue.properties.state) ⋄ state_reason: (Issue.properties.state_reason) ⋄ labels: Names)
+    ))))
+    NewLabel←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
+        type: 'object'
+        required: ('name' ⋄)
+        properties: (name: Text ⋄ color: Text ⋄ description: Text)
+    ))))
+    LabelChange←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
+        type: 'object'
+        properties: (new_name: Text ⋄ color: Text ⋄ description: Text)
+    ))))
+    LabelNames←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
+        type: 'object'
+        required: ('labels' ⋄)
+        properties: (labels: Names)
+    ))))
+    NewComment←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
+        type: 'object'
+        required: ('body' ⋄)
+        properties: (body: Text)
+    ))))
+
+⍝ ── Parameters ──────────────────────────────────────────────────────────
+
+    Number←(name: 'number' ⋄ in: 'path' ⋄ required: ⊂'true' ⋄ schema: Int)
+    PerPage←(name: 'per_page' ⋄ in: 'query' ⋄ schema: (type: 'integer' ⋄ default: 30 ⋄ maximum: 100))
+    Page←(name: 'page' ⋄ in: 'query' ⋄ schema: (type: 'integer' ⋄ default: 1))
+    State←(name: 'state' ⋄ in: 'query' ⋄ schema: (type: 'string' ⋄ enum: 'open' 'closed' 'all' ⋄ default: 'open'))
+    LabelFilter←(name: 'labels' ⋄ in: 'query' ⋄ description: 'Comma-separated label names; all must match' ⋄ schema: Text)
+    Sort←(name: 'sort' ⋄ in: 'query' ⋄ schema: (type: 'string' ⋄ enum: 'created' 'updated' ⋄ default: 'created'))
+
+⍝ ── Routes ──────────────────────────────────────────────────────────────
+
+    ∇ r←Routes
+      r←[
+        'GET'    '/health'                         'Health'           (summary: 'Health check: can this worker reach the database' ⋄ responses: (200 Health ⋄))
+        'GET'    '/labels'                         'ListLabels'       (summary: 'List labels, by name' ⋄ parameters: (PerPage ⋄ Page) ⋄ responses: (200 Labels ⋄))
+        'POST'   '/labels'                         'CreateLabel'      (summary: 'Create a label' ⋄ requestBody: NewLabel ⋄ responses: (201 Label ⋄ 422 Invalid))
+        'GET'    '/labels/{name}'                  'GetLabel'         (summary: 'Get a label (name is case-insensitive)' ⋄ responses: (200 Label ⋄ 404 Error))
+        'PATCH'  '/labels/{name}'                  'UpdateLabel'      (summary: 'Rename or recolour a label' ⋄ requestBody: LabelChange ⋄ responses: (200 Label ⋄ 404 Error ⋄ 422 Invalid))
+        'DELETE' '/labels/{name}'                  'DeleteLabel'      (summary: 'Delete a label' ⋄ responses: (204 ⍬ ⋄ 404 Error))
+        'GET'    '/issues'                         'ListIssues'       (summary: 'List issues' ⋄ parameters: (State ⋄ LabelFilter ⋄ Sort ⋄ PerPage ⋄ Page) ⋄ responses: (200 Issues ⋄))
+        'POST'   '/issues'                         'CreateIssue'      (summary: 'Create an issue' ⋄ requestBody: NewIssue ⋄ responses: (201 Issue ⋄ 422 Invalid))
+        'GET'    '/issues/{number}'                'GetIssue'         (summary: 'Get an issue' ⋄ parameters: (Number ⋄) ⋄ responses: (200 Issue ⋄ 404 Error))
+        'PATCH'  '/issues/{number}'                'UpdateIssue'      (summary: 'Update an issue; close or reopen it' ⋄ parameters: (Number ⋄) ⋄ requestBody: IssueChange ⋄ responses: (200 Issue ⋄ 404 Error ⋄ 422 Invalid))
+        'GET'    '/issues/{number}/labels'         'ListIssueLabels'  (summary: 'List the labels on an issue' ⋄ parameters: (Number ⋄) ⋄ responses: (200 Labels ⋄ 404 Error))
+        'POST'   '/issues/{number}/labels'         'AddIssueLabels'   (summary: 'Add labels to an issue' ⋄ parameters: (Number ⋄) ⋄ requestBody: LabelNames ⋄ responses: (200 Labels ⋄ 404 Error ⋄ 422 Invalid))
+        'DELETE' '/issues/{number}/labels/{name}'  'RemoveIssueLabel' (summary: 'Remove a label from an issue' ⋄ parameters: (Number ⋄) ⋄ responses: (200 Labels ⋄ 404 Error))
+        'GET'    '/issues/{number}/comments'       'ListComments'     (summary: 'List comments on an issue, oldest first' ⋄ parameters: (Number ⋄ PerPage ⋄ Page) ⋄ responses: (200 Comments ⋄ 404 Error))
+        'POST'   '/issues/{number}/comments'       'CreateComment'    (summary: 'Comment on an issue' ⋄ parameters: (Number ⋄) ⋄ requestBody: NewComment ⋄ responses: (201 Comment ⋄ 404 Error ⋄ 422 Invalid))
+      ]
+    ∇
 
     ∇ Start;router
       #.Db.Connect
       router←#.Stark.New ()
       router.Handlers←#.Api
-      router.Info←(title:'Issues' ⋄ version:'1.0.0')
+      router.Info←(title: 'Issues' ⋄ version: '1.0.0' ⋄ description: 'A small clone of the GitHub Issues REST API')
       router.OnFailFn←'FailBody'
       router.OnErrorFn←'ServerError'
       router.ThreadMode←1
       router.Register Routes
       router.Start 8080
-    ∇
-
-    ∇ r←Routes
-      r←[
-        'GET'     '/health'          'Health'
-        'GET'     '/labels'          'ListLabels'
-        'POST'    '/labels'          'CreateLabel'
-        'GET'     '/labels/{name}'   'GetLabel'
-        'PATCH'   '/labels/{name}'   'UpdateLabel'
-        'DELETE'  '/labels/{name}'   'DeleteLabel'
-        'GET'     '/issues'          'ListIssues'
-        'POST'    '/issues'          'CreateIssue'
-        'GET'     '/issues/{number}' 'GetIssue'
-        'PATCH'   '/issues/{number}' 'UpdateIssue'
-        'GET'     '/issues/{number}/labels'        'ListIssueLabels'
-        'POST'    '/issues/{number}/labels'        'AddIssueLabels'
-        'DELETE'  '/issues/{number}/labels/{name}' 'RemoveIssueLabel'
-        'GET'     '/issues/{number}/comments'      'ListComments'
-        'POST'    '/issues/{number}/comments'      'CreateComment'
-      ]
     ∇
 
 :EndNamespace

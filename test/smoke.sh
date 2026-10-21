@@ -283,6 +283,64 @@ test_issue_list_sort_updated() {
     expect_eq "unknown sort falls back to created" "$(jqb '.[0].title')" "newer $RUN"
 }
 
+# conforms SCHEMA_JSON VALUE_JSON -> "true" when the value has exactly the
+# schema's fields, with matching types (OpenAPI 3.0: type, nullable, items)
+conforms() {
+    jq -n --argjson s "$1" --argjson v "$2" '
+      def jtype: if type == "number" then (if . == floor then "integer" else "number" end) else type end;
+      def ok($s):
+        if . == null then ($s.nullable == true)
+        elif $s.type == "array" then (type == "array" and all(.[]; ok($s.items)))
+        elif $s.type == "object" then
+          (type == "object" and (keys == ($s.properties | keys))
+           and (. as $v | all($s.properties | to_entries[]; . as $p | $v[$p.key] | ok($p.value))))
+        elif $s.type == "number" then (type == "number")
+        else (jtype == $s.type) end;
+      $v | ok($s)'
+}
+
+SPEC=""
+spec_schema() {   # spec_schema PATH METHOD STATUS
+    [ -n "$SPEC" ] || SPEC=$(curl -s "$BASE/openapi.json")
+    jq -c --arg p "$1" --arg m "$2" --arg s "$3" '.paths[$p][$m].responses[$s].content["application/json"].schema' <<<"$SPEC"
+}
+
+test_openapi_metadata() {
+    local spec; spec=$(curl -s "$BASE/openapi.json")
+    expect_eq "every operation has a summary" "$(jq '[.paths[][] | has("summary")] | all' <<<"$spec")" true
+    expect_eq "list issues query parameters" "$(jq -c '[.paths["/issues"].get.parameters[].name] | sort' <<<"$spec")" '["labels","page","per_page","sort","state"]'
+    expect_eq "issue number is an integer" "$(jq -r '.paths["/issues/{number}"].get.parameters[0].schema.type' <<<"$spec")" integer
+    expect_eq "create issue responses" "$(jq -c '.paths["/issues"].post.responses | keys' <<<"$spec")" '["201","422"]'
+    expect_eq "create issue body requires title" "$(jq -c '.paths["/issues"].post.requestBody.content["application/json"].schema.required' <<<"$spec")" '["title"]'
+    expect_eq "delete label answers 204" "$(jq -c '.paths["/labels/{name}"].delete.responses | keys' <<<"$spec")" '["204","404"]'
+}
+
+test_responses_match_spec() {
+    new_label "spec-$RUN"
+    req POST /labels "{\"name\":\"spec2-$RUN\",\"description\":\"d\"}"
+    expect_eq "POST /labels 201 matches spec" "$(conforms "$(spec_schema /labels post 201)" "$BODY")" true
+    new_issue "{\"title\":\"spec $RUN\",\"labels\":[\"spec-$RUN\"]}"
+    expect_eq "POST /issues 201 matches spec" "$(conforms "$(spec_schema /issues post 201)" "$BODY")" true
+    req PATCH "/issues/$NUM" '{"state":"closed"}'
+    expect_eq "PATCH /issues/{number} 200 matches spec" "$(conforms "$(spec_schema '/issues/{number}' patch 200)" "$BODY")" true
+    req POST "/issues/$NUM/comments" '{"body":"c"}'
+    expect_eq "POST comment 201 matches spec" "$(conforms "$(spec_schema '/issues/{number}/comments' post 201)" "$BODY")" true
+    req GET "/issues/$NUM/comments"
+    expect_eq "GET comments 200 matches spec" "$(conforms "$(spec_schema '/issues/{number}/comments' get 200)" "$BODY")" true
+    req GET "/issues?labels=spec-$RUN&state=all"
+    expect_eq "GET /issues 200 matches spec" "$(conforms "$(spec_schema /issues get 200)" "$BODY")" true
+    req GET "/issues/$NUM/labels"
+    expect_eq "GET issue labels 200 matches spec" "$(conforms "$(spec_schema '/issues/{number}/labels' get 200)" "$BODY")" true
+    req GET "/labels?per_page=5"
+    expect_eq "GET /labels 200 matches spec" "$(conforms "$(spec_schema /labels get 200)" "$BODY")" true
+    req GET /issues/99999999
+    expect_eq "404 matches spec" "$(conforms "$(spec_schema '/issues/{number}' get 404)" "$BODY")" true
+    req POST /issues '{}'
+    expect_eq "422 matches spec" "$(conforms "$(spec_schema /issues post 422)" "$BODY")" true
+    req GET /health
+    expect_eq "GET /health matches spec" "$(conforms "$(spec_schema /health get 200)" "$BODY")" true
+}
+
 # A JSON string of n characters
 long_text() { python3 -c "import sys; print('x'*int(sys.argv[1]))" "$1"; }
 

@@ -271,3 +271,26 @@ curl -s 'localhost:8080/issues?state=closed&sort=updated&per_page=1'
 **Broke:** nothing.
 
 **Commit:** `Open the newest issue on load; sort=updated`
+
+## Task 12: The API description lives in the route table
+
+**Did:** Stark builds `/openapi.json` from the routes it's given, and each route can carry a fourth item: a namespace that Stark merges into that operation's OpenAPI entry. Until now the table had only three columns, so the spec knew paths and methods and nothing else. Every route now has its summary, parameters, request body and responses, written as APLAN in `Service.apln`:
+
+```apl
+'GET' '/issues/{number}' 'GetIssue' (summary: 'Get an issue' ⋄ parameters: (Number ⋄) ⋄ responses: (200 Issue ⋄ 404 Error))
+```
+
+The shapes (`Issue`, `Label`, `Comment`, `Error`, `Invalid`, the request bodies, the query parameters) are ordinary APLAN variables at the top of the namespace, so each is written once and reused across rows. `responses: (201 Issue ⋄ 422 Invalid)` is Stark's shorthand for full response objects. The description is code that runs: a route can't exist without its entry in the spec, and the spec can't list a route that doesn't exist.
+
+Stark only publishes the metadata; it doesn't check traffic against it. So the shapes could still disagree with what Postgres's views return. Two new tests close that gap: `test_openapi_metadata` checks the spec's content, and `test_responses_match_spec` fetches the spec and checks real responses for 11 operations against their schemas, comparing fields, types and nullability with a 15-line jq function. Removing a single field from the `Issue` schema makes three of those checks fail.
+
+**Commands:**
+```bash
+docker compose up -d --build --scale worker=3 --wait
+curl -s localhost:8080/openapi.json | jq '.paths["/issues"].get.parameters[].name'
+test/smoke.sh test_openapi_metadata test_responses_match_spec
+```
+
+**Broke:** nothing.
+
+**Commit:** `OpenAPI metadata for every route, in APLAN`

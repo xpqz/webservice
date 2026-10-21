@@ -56,7 +56,7 @@ Or open the **console** at <http://localhost:3000>. It's a separate client app (
 
 Every response has an `X-Worker` header that names the worker that answered. Repeat a request and it changes.
 
-The OpenAPI description is at <http://localhost:8080/openapi.json>, and you can load it into any Swagger UI.
+The OpenAPI description is at <http://localhost:8080/openapi.json>, and you can load it into any Swagger UI. Stark generates it from the route table in `worker/app/Service.apln`, where each route carries its summary, parameters, request body and responses as APLAN. The tests check real responses against it.
 
 Other things to try:
 
@@ -99,7 +99,7 @@ The design document (top-down, with diagrams and a step-through of a request) is
 | `nginx/nginx.conf` | load balancing |
 | `db/init/01-schema.sql` | tables, rules (triggers), and the views and functions that build JSON |
 | `worker/Dockerfile` | Debian + Dyalog + unixODBC + Postgres ODBC driver + Stark |
-| `worker/app/Service.apln` | the route table |
+| `worker/app/Service.apln` | the route table, with each route's OpenAPI description in APLAN |
 | `worker/app/Api.apln` | the handlers |
 | `worker/app/Db.apln` | the database connection |
 | `worker/hello-db.apls` | a first check that APL can reach Postgres |
