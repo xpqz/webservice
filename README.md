@@ -52,6 +52,8 @@ curl -s 'localhost:8080/issues?state=all&labels=bug'
 
 Raw responses show non-ASCII characters as escapes (`⍳` is `\u2373`). That's valid JSON; pipe through `jq` to see the characters.
 
+Or open the **console** at <http://localhost:3000>. It's a separate client app (Vue, no build step) that runs in your browser and uses the API exactly like `curl` does. You can browse, create and edit issues and comment on them, and a request log at the bottom shows every REST call it makes, with the JSON.
+
 Every response has an `X-Worker` header that names the worker that answered. Repeat a request and it changes.
 
 The OpenAPI description is at <http://localhost:8080/openapi.json>, and you can load it into any Swagger UI.
@@ -97,5 +99,6 @@ Known limitations:
 | `worker/app/Api.apln` | the handlers |
 | `worker/app/Db.apln` | the database connection |
 | `worker/hello-db.apls` | a first check that APL can reach Postgres |
+| `console/` | the browser client: `api.js` (every REST call), `app.js` (Vue components) |
 | `test/smoke.sh` | end-to-end tests |
 | `docs/build-log.md` | how it was built, step by step, including what went wrong |

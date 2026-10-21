@@ -41,5 +41,14 @@ services:
       worker:
         condition: service_healthy
 
+  # A separate client app: static files for the browser, which then talks
+  # to the API at localhost:8080 like any other REST client.
+  console:
+    image: nginx:1.29
+    ports:
+      - "3000:80"
+    volumes:
+      - ./console:/usr/share/nginx/html:ro
+
 volumes:
   pgdata:

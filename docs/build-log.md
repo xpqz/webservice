@@ -227,3 +227,25 @@ test/smoke.sh
 ```
 
 **Commit:** `Validate request fields like GitHub does`
+
+## Task 10: A console that is just another client
+
+**Did:** Added a browser console in its own container, a fourth compose service. It's a stock `nginx` image whose only job is to hand four static files to the browser: `index.html`, `style.css`, `api.js` and `app.js`. From then on the browser talks to the API at `localhost:8080` directly, as any REST client would. The API needed no changes: the console is a consumer, not part of the service.
+
+- **Vue 3 without a build step.** `index.html` maps `vue` to a pinned CDN URL in an import map, and the code is ordinary ES modules. There's no npm and no bundler, and it's still a real framework that readers can grow into.
+- `api.js` holds the single `call(method, path, body)` that every request goes through. It records each call for the request log: method, URL, status, `X-Worker`, time, and the JSON in both directions.
+- `app.js` has four small components: the issue list (state and label filters, paging), the issue view (comments, close and reopen, add a comment), one form for both new and edit, and the request log.
+
+**CORS:** a page from `localhost:3000` calling `localhost:8080` is a cross-origin request, so the browser asks the API's permission first. Jarvis already answers these preflight requests (`EnableCORS` is on by default and allows any origin). The one gap: browsers only let page code read a handful of standard response headers, so `X-Worker` was invisible to the console until nginx added `Access-Control-Expose-Headers: X-Worker`.
+
+**Commands:**
+```bash
+docker compose up -d --scale worker=3 --wait
+open http://localhost:3000
+test/smoke.sh test_console_served test_cors_for_console
+```
+
+**Broke:**
+- After editing `nginx/nginx.conf`, `docker compose up` didn't restart nginx, because a changed bind-mounted file isn't a changed container. `docker compose restart nginx` picks it up.
+
+**Commit:** `Browser console as a separate REST client`

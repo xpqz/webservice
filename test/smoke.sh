@@ -326,6 +326,29 @@ test_large_list() {
     expect_eq "large list count" "$(jqb length)" 18
 }
 
+CONSOLE=${CONSOLE:-http://localhost:3000}
+
+test_console_served() {
+    local status page
+    status=$(curl -s -o "$TMP/console" -w '%{http_code}' "$CONSOLE/")
+    expect_eq "console page status" "$status" 200
+    expect_eq "console page is the Vue app" "$(grep -c 'id="app"' "$TMP/console")" 1
+    status=$(curl -s -o /dev/null -w '%{http_code}' "$CONSOLE/app.js")
+    expect_eq "console app.js served" "$status" 200
+}
+
+test_cors_for_console() {
+    curl -s -D "$TMP/h" -o /dev/null -X OPTIONS -H "Origin: $CONSOLE" \
+         -H 'Access-Control-Request-Method: PATCH' -H 'Access-Control-Request-Headers: content-type' "$BASE/issues/1"
+    HEADERS=$(tr -d '\r' < "$TMP/h")
+    expect_eq "preflight allows origin" "$(grep -ci '^access-control-allow-origin: ' <<<"$HEADERS")" 1
+    expect_eq "preflight allows PATCH" "$(grep -i '^access-control-allow-methods:' <<<"$HEADERS" | grep -c PATCH)" 1
+    curl -s -D "$TMP/h" -o /dev/null -H "Origin: $CONSOLE" "$BASE/issues"
+    HEADERS=$(tr -d '\r' < "$TMP/h")
+    expect_eq "response allows origin" "$(grep -ci '^access-control-allow-origin: ' <<<"$HEADERS")" 1
+    expect_eq "browser may read X-Worker" "$(grep -i '^access-control-expose-headers:' <<<"$HEADERS" | grep -ci x-worker)" 1
+}
+
 # workers_seen N -> number of distinct X-Worker values over N requests
 workers_seen() {
     for _ in $(seq "$1"); do
