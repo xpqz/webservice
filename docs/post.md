@@ -439,11 +439,10 @@ Jarvis has parsed the JSON body into `req.Payload`. `Text` reads a text field fr
 That validation error comes from a three-line helper:
 
 ```apl
-∇ r←resource Invalid(req field code);e
+∇ r←resource Invalid(req field code)
   req.Fail 422
-  r←(message:'Validation Failed' ⋄ errors:⍬)
-  e←⎕NS'' ⋄ e.(resource field code)←resource field code
-  r.errors←,⊂e
+  r←(message: 'Validation Failed' ⋄ errors: ⍬)
+  r.errors,←(resource: resource ⋄ field: field ⋄ code: code)
 ∇
 ```
 

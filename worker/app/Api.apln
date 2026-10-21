@@ -216,11 +216,10 @@
       r←(message:'Not Found')
     ∇
 
-    ∇ r←resource Invalid(req field code);e
+    ∇ r←resource Invalid(req field code)
       req.Fail 422
-      r←(message:'Validation Failed' ⋄ errors:⍬)
-      e←⎕NS'' ⋄ e.(resource field code)←resource field code
-      r.errors←,⊂e
+      r←(message: 'Validation Failed' ⋄ errors: ⍬)
+      r.errors,←(resource: resource ⋄ field: field ⋄ code: code)
     ∇
 
     ∇ r←err ServerError req;resource
