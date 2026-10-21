@@ -37,7 +37,7 @@ ERROR 4 SQLSTATE 42P01
 - `é` in the SQL text itself arrived at Postgres as the single byte `0xe9`, and `⍳` gave SQAPL error `10081 Length error`. Don't fix: never put data in SQL text. Every value goes in as a bind variable, which is also what makes `it's; --x` harmless.
 - Bound text came back as UTF-8 bytes shown as Latin-1 (`â\u008D³` for `⍳`). Fix: declare the ODBC side as wide. `:<C100(W):` for input, `:>C100(W):` or `:>C100000(Q):` (wide long text) for output. APL type `C`, ODBC type in brackets.
 - A long result with an unsized output declaration was silently cut at 8190 characters (return code `¯1`, a warning). Fix: always size output declarations, e.g. `:>C1000000(Q):`.
-- Emoji (anything outside Unicode's Basic Multilingual Plane, e.g. 🚀) are lost in both directions; SQAPL passes wide text as UCS-2. APL glyphs and accented letters are fine. Accepted as a documented limitation; tests use BMP text only.
+- Emoji (and anything else outside Unicode's Basic Multilingual Plane, such as mathematical bold letters) are lost in both directions; SQAPL passes wide text as UCS-2. APL glyphs and accented letters are fine. Accepted as a documented limitation; tests use BMP text only.
 - `⎕←` output from `dyalogscript` in a container had no line breaks between lines. Used `⍞←text,⎕UCS 10` instead.
 - `SQA.Do` returns `rc cursor (⊂matrix) status`. One `⊃` too many and you're looking at the first character of the first cell.
 
@@ -294,3 +294,21 @@ test/smoke.sh test_openapi_metadata test_responses_match_spec
 **Broke:** nothing.
 
 **Commit:** `OpenAPI metadata for every route, in APLAN`
+
+## Task 13: Real demo data, and tests on their own database
+
+**Did:**
+- **Demo data from Dyalog/link.** `db/seed/fetch.py` takes the 25 most recent open and 15 most recent closed issues from Dyalog/link, with their labels and up to three comments each, and writes a snapshot, `db/seed/link-issues.json`. Each body ends with a pointer to the original issue. `db/seed/load.sh` loads the snapshot through the public API with curl, so the demo data is itself an example of a client using the API.
+- **Tests on a separate stack.** `test/ci.sh` starts a second copy of the stack under its own compose project name (`issues-test`), so it gets its own database volume, on ports 18080 and 13000. It runs `test/smoke.sh` against that copy and removes it afterwards, data and all. The whole suite takes about 20 seconds. The demo stack and its data are never touched; the tests that restart containers restart only the test stack's.
+
+**Commands:**
+```bash
+docker compose down -v && docker compose up -d --build --scale worker=3 --wait
+db/seed/load.sh        # loaded 7 labels and 40 issues from https://github.com/Dyalog/link
+test/ci.sh             # failures: 0
+```
+
+**Broke:**
+- Loading stopped at the label `H𝗜𝗚𝗛`, whose name is written in mathematical bold letters. These lie outside Unicode's Basic Multilingual Plane, and passing them to SQAPL crashed the Dyalog worker with a segmentation fault. A five-line SQAPL script reproduces it. The API now refuses such text with a 422 before it reaches SQAPL, and the snapshot folds styled letters to plain ones, so the label is `HIGH`.
+
+**Commit:** `Demo data from Dyalog/link; tests on their own database`

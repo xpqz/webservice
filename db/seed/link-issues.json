@@ -1,0 +1,554 @@
+{
+ "source": "https://github.com/Dyalog/link",
+ "fetched": "2026-10-21",
+ "labels": [
+  {
+   "name": "bug",
+   "color": "ff9900",
+   "description": "Something isn't working"
+  },
+  {
+   "name": "discuss",
+   "color": "004F67",
+   "description": "This issue needs design discussion"
+  },
+  {
+   "name": "documentation",
+   "color": "fbca04",
+   "description": "The documentation can be improved"
+  },
+  {
+   "name": "enhancement",
+   "color": "a2eeef",
+   "description": "New feature or request"
+  },
+  {
+   "name": "HIGH",
+   "color": "ff0000",
+   "description": "This has high priority from the development team"
+  },
+  {
+   "name": "Low",
+   "color": "00ff00",
+   "description": "Needs doing, but isn't urgent"
+  },
+  {
+   "name": "MID",
+   "color": "FFFF00",
+   "description": "Should be done fairly soon"
+  }
+ ],
+ "issues": [
+  {
+   "source": "https://github.com/Dyalog/link/issues/726",
+   "title": "Deleting a namespace and then bringing it back and populate it does not work as expected",
+   "body": "Starting point is the file [Code.zip](https://github.com/user-attachments/files/20189573/Code.zip)\n\nDownload this, unzip into, say, /path/2/, start 19.0 and carry out the following steps:\n\n1. ]Link.Create  '#.Code' /path/2/Code\n2. Execute #.Code.Create\n3. Execute #.Code.test_1\n\nThis always results in:\n\n```\nFILE ACCESS ERROR: /path/2/Code/_667/Foo: Unable to open file\ntest_1[3] ⎕SE.Link.Add'#._667.Foo.'∘,¨↓#._667.Foo.⎕NL 3\n```\n\nAfter executing \"Resume all threads\" (that's right!) you get something along these lines:\n\n```\nAdded: #._667.Foo.Fns_00 #._667.Foo.Fns_01 ...\nLink Warning: FileSystemWatcher error on directory: /path/2/Code/_667 watching may no longer be reliable.\nFILE ACCESS ERROR: /path/2/Code/_667/Foo: Unable to open file\n      test_1\n      ∧\n```\n\nAt this stage, when I enter `)SI`, 100% of the time APL hangs.\n\n(This is my <02264>)\n\n(From Dyalog/link#726)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": [
+    "```\n]Tools.Version\n Dyalog  19.0.51424 64-bit Unicode, BuildID f0edb773 \n OS      Windows 11 (10.0.26100) 64-bit              \n Link    4.0.20                                      \n SALT    2.915                                       \n UCMD    2.6                                         \n .NET    .NET Framework 4.8.9310.0                   \n WS      19.0                                        \n Tatin   0.120.0                                     \n Cider   0.48.0    \n```",
+    "aplteam has reported that these issues don't happen with Link 4.1.4.  I am trying the repro.  We regard the hang as a Dyalog issue and I am getting more info about that."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/727",
+   "title": "Configuration generated with inconsistent and non-OS compliant line endings",
+   "body": "## Overview\n\nRunning under Linux (and potentially Windows as well), when Link creates a `.linkconfig` file, MacOS line endings (`⎕UCS 13`) are used, which causes spurious interaction with other Linux tools, _e.g._\n\n```\n$ cat ws/.linkconfig\n} },watch: \"dir\",ID: \"4.0.17\"},\n\nIn fact, however, the final byte is `⎕UCS 10`.\n```\n\nLink does respects `⎕UCS 10` line endings just fine at read time, so it might be desirable to also use OS-specific line endings at generation as well.\n\n\n## Reproduction\n\n```\n      ]LINK.Create # nonexistent -watch=dir\nLinked: # ← /home/x/devel/com.wilsonb.git/scratchpad/bmp/nonexistent [directory was created]\n\n      ⎕UCS d←⎕NREAD('nonexistent/.linkconfig'⎕NTIE 0) 83 ¯1\n{\n  LinkVersion: { ID: \"4.0.17\"},\n\n  Settings: {\n    watch: \"dir\",\n  },\n}\n\n      10 13⍳d\n2 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1 2 2 2 2 1 2 0\n\n```\n\nNote also the trailing `⎕UCS 10` byte.\n\n## Version Information\n\n```\n      ]version\n Dyalog  19.0.50027 64-bit Unicode, BuildID 3dae0625\n OS      Linux 6.13.12 #1 SMP PREEMPT_DYNAMIC 1 x86_64\n Link    4.0.17\n SALT    2.915\n UCMD    2.6\n .NET    .NET 8.0.8\n WS      19.0\n Tatin   (unavailable)\n Cider   (unavailable)\n```\n\n(From Dyalog/link#727)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "MID"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/736",
+   "title": "]link.resync fails when using text:plain",
+   "body": "**Describe the bug**\nResync claims that changes exist even when they do not, if text:plain is set.\n\n**To Reproduce**\n```\n      ⎕MKDIR 'c:\\tmp\\statfns'\n      (⊂'Mean' 'StdDev')⎕NPUT'c:\\tmp\\statfns\\STATFNS.vec.apla'\n      ]link.create # c:\\tmp\\statfns\n      )save c:\\tmp\\statfns.dws\n      )load c:\\tmp\\statfns.dws \nc:\\tmp\\statfns.dws ⍝ saved Thu Sep 25 17:30:55 2025\nLink Warning: IMPORTANT: 1 namespaces linked in this workspace: #\nLink Warning: IMPORTANT: Link.Resync is required\n      ]link.resync\n2 updates required: use -proceed option to synchronise                                \n                                                                                      \n Name  Direction  File                                 Comments                       \n       ←          C:/Devt/Link/StartupSession/Link/U/  File has no corresponding item \n       ←          c:/tmp/statfns/STATFNS.vec.apla      File has no corresponding item \n```\n**Expected behaviour**\nThere is no need for a resync. The issue is that inside Link.Diff, the corresponding element of expfiles for STATFNS is STATFNS.apla and not STATFNS.vec.apla.\n\n**Version Info**\nAPL Version: 20.0.52434.0 64 Unicode\nLink: 4.1.6\n\n(From Dyalog/link#736)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/737",
+   "title": "Ignore empty folders with invalid names",
+   "body": "**Describe the bug**\nCreating a new folder using Windows Explorer and the renaming it gives a lot of pointless warnings in the APL session:\n```\n      ]link.create c:\\tmp\\statfns\nLinked: #.statfns ←→ \"c:\\tmp\\statfns\"\n```\n(create a new folder using Windows explorer)\n```\nLink Warning: ⎕SE.Link.Notify: changed c:/tmp/statfns/New folder: invalid name defined by file: c:/tmp/statfns/New folder\nLink Warning: Unable to read \"c:/tmp/statfns/New folder\": c:/tmp/statfns/New folder: Invalid file or directory\n```\n(rename it to \"sub\"):\n```\nLink Warning: ⎕SE.Link.Notify: renamed c:/tmp/statfns/sub: updating previously linked #.statfns.subnamespace #.statfns.New folder not found. Loading #.statfns.sub from c:/tmp/statfns/sub\n```\n**Expected behaviour**\nIgnore such folders, just say nothing.\n\n(From Dyalog/link#737)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug",
+    "enhancement",
+    "Low"
+   ],
+   "comments": [
+    "Empty folders are ignored by Git anyway."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/738",
+   "title": "Make link ucmds apply ⎕DF to anonymous nss when `ref≡⍎⍕ref`",
+   "body": "```\n      ns←⎕ns''\n      ns.foo←{⍵}\n      ]Create ns ns\nERRORS ENCOUNTERED: ⎕SE.Link.Create: Not a properly named namespace: #.ns\n    ⍝   should be\n⍝ ERRORS ENCOUNTERED: ⎕SE.Link.Create: Not a properly named namespace: #.ns\n⍝ try deleting #.ns then recreate #.ns like so: '#.ns'⎕ns''\n```\n\n(From Dyalog/link#738)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "enhancement",
+    "Low"
+   ],
+   "comments": [
+    "Or even better, suggest setting `ns.⎕DF` to a path that reaches it: `ns.⎕DF⍕ns`",
+    "Even better yet, just fix the issue via `⎕DF`."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/739",
+   "title": "Provide a documented mechanism to daisy chain EditorFix Callbacks",
+   "body": "(From Dyalog/link#739)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "documentation",
+    "MID"
+   ],
+   "comments": [
+    "Please add info on why daisy-chaining is required, as opposed to the current system of multiple callbacks.",
+    "This seems to be a documentation issue.",
+    "This is item 13 on [SimCorp Italiana's backlog spreadsheet](https://wiki.bramley.dyalog.com/index.php/SCIta_backlog).\n\nI suspect asking for daisy chaining specifically was a classic case of pre-supposing the solution to their requirements, and multiple callbacks will suffice - I will confirm - but they do require something supported and documented, and that should be considered with high priority."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/740",
+   "title": "Documentation: Example code correction needed",
+   "body": "Reported by Kai:\n\nOn this page: https://dyalog.github.io/link/3.0/Usage/Setup/#automating-startup\nthere is this example in APL code:\nMAXWS: 100M,\nwhich is wrong, it must be\nMAXWS: \"100M\",\n\n(From Dyalog/link#740)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "documentation",
+    "Low"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/741",
+   "title": "-preloaded should allow patching since a given cutoff",
+   "body": "When using the -preloaded switch, how about allowing it to have an argument to indicate that the workspace is partially preloaded. If, for example, the workspace was saved as of 1/1/2025 you could tell -preloaded to only ignore files that were saved prior to that date. You might use -preloaded=1/1/2025 to indicate this, for instance. But if a few of the files had been last changed since that date, then it would load those files normally.\n\nAnother syntax might be -preloaded=* which could indicate using the loaded workspace's own timestamp as the cutoff date, rather than a specific date, and only files changed since the workspace was saved would be loaded as new/changed while the bulk of them would be considered as unchanged from the saved copy of the workspace.\n\n(From Dyalog/link#741)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "enhancement",
+    "HIGH"
+   ],
+   "comments": [
+    "Yes - I've already been thinking that we should incorporate some of the recent build code we have written for applications into Link itself.",
+    "But use internation date format: -preloaded=2025-01-01",
+    "Agreed - I wasn't sure which format would be best, since there are so many possibilities. This might be extended to optionally include a time-of-day and/or TZ, too."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/743",
+   "title": "Allow -text=plain on specific variables",
+   "body": "Something I ran into today was trying to adjust one of my variables on disk from -text=aplan to -text=plain. There does not seem to be an easy way to do this. I propose that the -text= option be added to ]Link.Add so that specific variables can be encoded that way without having to store every variable in the workspace the same way.\n\nIf I've already got a variable in aplan format (as I did in this case), ]Link.Add would also need to detect the existence of a current file matching that name and rename the existing file (with new content) instead of just adding another file with a conflicting name.\n\n(From Dyalog/link#743)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "enhancement",
+    "MID"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/751",
+   "title": "Namespace structure is destroyed if repeatedly trace and edit a method in a deeply nested linked namespace",
+   "body": "**Describe the bug**\nNamespace structure is destroyed if repeatedly trace and edit a method in a deeply nested linked namespace\n\n**To Reproduce**\nPREP:\ncopy attached zip file to c:\\tmp\\ and unzip it there.\nThis creates a subdirectory dir751 in c:\\tmp\n\n[dir751.zip](https://github.com/user-attachments/files/24643873/dir751.zip)\nc:\\tmp\\dir751\\repro.apln contains the following:\n```apl\n:NameSpace Repro\n  :NameSpace NS2\n    :NameSpace NS3\n        ∇ r←ns3Main\n            r←'hey there!'\n        ∇\n    :EndNamespace\n  :EndNamespace\n  :endnamespace \n```\nREPRO:\nin Dyalog: `]link.create # c:\\tmp\\dir751`\nRun the following with ctrl + enter: `Repro.NS2.NS3.ns3Main`\nEdit the r← line before it executes, and change the text to something else\nPress continue execution\nNote that the result is still 'Hey there!' even though you have edited the file. This behaviour exists for all nested namespaces that are depth 2 or more\nRepeat steps 2, 3 and 4 again, and note the following printed to the session: `Link Warning: ⎕SE.Link.OnAfterFix: No source for #.Repro.NS2.Repro`\nNote that now the nested namespace structure is gone, and instead, both `ns3Main` and `ns4Main` are now in `#.Repro`, and there is no longer a `NS2` namespace in `#.Repro`\n```\nRepro.NS2.NS3.ns3Main\nVALUE ERROR: Undefined name: NS3\n      Repro.NS2.NS3.ns3Main\n```\n\n**Expected behaviour**\nThe namespace hierarchy not to be destroyed.\n\n**Session transcript**\n```\n]link.create # D:\\tmp\\dir751\nLinked: # ←→ \"D:\\tmp\\dir751\"\n      Repro.NS2.NS3.ns3Main\nhey there!\n      Repro.NS2.NS3.ns3Main\nLink Warning: ⎕SE.Link.OnAfterFix: No source for #.Repro.NS2.Repro\nhey there 1 2!\n      Repro.NS2.NS3.ns3Main\nVALUE ERROR: Undefined name: NS3\n      Repro.NS2.NS3.ns3Main\n                ∧\n```\n\n**Desktop (please complete the following information):**\n\n**Additional context**\n]tools.version\n Dyalog  20.0.53006 64-bit Unicode, BuildID df0c7c9e            \n OS      Windows 10 or Windows Server 2016 (10.0.19045) 64-bit  \n Link    4.1.6                                                  \n SALT    2.915                                                  \n UCMD    2.7                                                    \n .NET    .NET 8.0.23                                            \n WS      20.0                                                   \n Tatin   0.122.0                                                \n Cider   0.49.0\n\n(From Dyalog/link#751)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug",
+    "HIGH"
+   ],
+   "comments": [
+    "Holden found this one, so he is best placed to supply more info.\n\nJD says \"I suspect that 22741 is a LINK issue, if I just ⎕FIX the file, I think it’s OK (Holden says the same, Vince, perhaps you could try that too).\"",
+    "I too suspect it's a LINK issue. If you just ⎕FIX the file, or paste the file contents in the session as a multiline input, the issue does not occur."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/752",
+   "title": "Expunge returns a shy result",
+   "body": "Link's `Expunge` function returns a shy result. In my opinion, it should not.\n\n(From Dyalog/link#752)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug",
+    "HIGH"
+   ],
+   "comments": [
+    "Just to be sure: It should not return a result, or the result should not be shy? ;)",
+    "The result should not be shy, but check #507"
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/753",
+   "title": "Make ]Locate -Replace Link-aware",
+   "body": "I will sometimes use ]Locate with the -Replace option to make changes across my namespace. But when I am building that system entirely with Link, it does not detect that I've made changes with programs like ]Locate. Might we add some Link awareness to ]Locate so that when linked objects are changed it also notifies Link so that the connected text files are updated at the same time?\n\n(From Dyalog/link#753)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "enhancement",
+    "Low",
+    "discuss"
+   ],
+   "comments": [
+    "What about all other tools that modify source, including built-in ones like the Workspace Explorer and `⎕FIX` and even `←`?"
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/754",
+   "title": "OnAfterFix silently ignores bad config files when setting stop and trace bits",
+   "body": "If a config file is invalid in any way, the error messages that SetFlags returns are silently ignored.\n\n(From Dyalog/link#754)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug",
+    "Low"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/757",
+   "title": "Support multiple items in a single source file",
+   "body": "**Is your feature request related to a problem? Please describe.**\nAs an functionista, I'd like to bunch bags of lil' functions together in a single source file.\n\n**Describe the solution you'd like**\nIf you edit something that comes from a multi-file, you see the entire multi-text. Insert a new item and it gets defined and saved as such. Remove an item from a multi-text, it gets deleted and the file updated.\n\n(From Dyalog/link#757)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "enhancement",
+    "MID",
+    "discuss"
+   ],
+   "comments": [
+    "This would introduce disproporionate cost for very little gain. It would require overhauling the sync parser while breaking compatibility with plenty of tools and user commands that rely on the strict 1:1 file-to-function mapping.\n\nAlso, this solves an organizational problem that APL already addresses natively with Namespaces. They are the correct abstraction for grouping related logic, offering superior scoping and encapsulation compared to file-based bundling.\n\nFinally, the current 1:1 model aligns perfectly with Git workflows, ensuring atomic commits and minimizing merge conflicts. Merging unrelated changes in a single multi-function file causes potentially unnecessary friction in a collaborative development enviromnent.\n\nMy conclusion: The added complexity would outweigh the convenience of fewer files.",
+    "- Namespaces do not allow grouping without it affecting names.\n- People in today's world expect multiple functions in a single file.\n- It is convenient to be able to distribute a \"workspace\" as a single file.\n- For those that use the style of bags of very small functions, opening one editor window per function is simply not sustainable.\n- The interpreter already supports multiple items in a single file.\n- Shell scripts are already multiple items in a single file, and should be 1st class source files too.\n- Git handles insertions and deletions from a single file just as well as the addition and removal of a file.\n\nThat said, maybe it isn't worth complicating Link at this point. Hopefully, Link-like functionality will soon be an integral part of the interpreter, and it already handles multi-files."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/758",
+   "title": "Handle tacit functions",
+   "body": "**Is your feature request related to a problem? Please describe.**\nAs a tacit programmer, I'd like to be able to save and retrieve tacit functions\n\n**Describe the solution you'd like**\nAllow `]add avg←+⌿÷≢` and store it in avg.aplf and detect that it isn't a dfn or tradfn when loading it back in.\n\n**Describe alternatives you've considered**\nSince the definition essentially needs to be executed to re-establish, maybe it belongs in avg.apls?\n\n(From Dyalog/link#758)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "enhancement",
+    "Low"
+   ],
+   "comments": [
+    "Please can I add a vote for this request? I would find this enhancement very useful, having just spent some time reverting to `dfns`, in order to get link to export my workspace. \n\nFWIW: I am learning APL using: \"Link 4.1.6\" on \"Dyalog APL - Version 20.0.52760\" for MacOS.",
+    "@marvin-littlewood Meanwhile, as a workaround, you can install [abrudz/Lazy](https://github.com/abrudz/Lazy/). (My private tool, not endorsed by Dyalog.)",
+    "@abrudz: Many thanks - installed and working!"
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/759",
+   "title": "Separate storage of stop/trace bits into .linkflags",
+   "body": "(From Dyalog/link#759)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "enhancement",
+    "Low"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/760",
+   "title": "Work-around restricted file names under Windows",
+   "body": "If you have namespace with one of the names \n\naux, con, nul, prn, com1 .. com9, and lpt1 ..lpt9\n\n... Then Link cannot create the folder under Windows.\n\nLink can work around the problem by using (∊1 ⎕NPARTS ...) on the namespace name before trying to create the directory. It is possible to create a folder called \"c:\\lpt1\", but not \"lpt1\".\n\n(From Dyalog/link#760)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/761",
+   "title": "Link issues just a warning when a file becomes invalid due to a merge conflict",
+   "body": "I changed a file, realized that this should not go into the next commit, stashed it, committed my changes, brought back the stashed file and then pulled changes from Github. \n\nThat caused a conflict in that file. Link printed a warning to the session:\n\n```\nLink Warning: ⎕SE.Link.Notify: changed C:....somestuff.apla: invalid file contents\n```\n\nThis is caused by the conflict markers injected into the file by Git.\n\nThe question is: shouldn't Link throw an error rather than issue a warning?\nI was not sure about this, but then I learned that Link's Import would throw an error on such a file, and I guess the two scenarios should be handled consistently.\n\n(From Dyalog/link#761)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": [
+    "What do you mean by Link throwing an error?\n\nOne thing that might be nice would be to tell you how to open the file for editing:\n```\nLink Warning: ⎕SE.Link.Notify: changed C:\\kai\\somestuff.apla: invalid file contents\n      )ed C:\\kai\\somestuff.apla  ⍝ to edit\n```",
+    "My wording was not precise:\n\n```\n]liNK.Import /path/2/faulty_stuff\nImported: #.faulty_stuff ← \"/path/2/faulty_stuff\"\nERRORS ENCOUNTERED: 1 import(s) failed:\n\"/path/2/faulty_stuff/some_stuff.apla\"\n```"
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/762",
+   "title": "Docs for installation have an odd section which talks about displaying the link version",
+   "body": "**Describe the bug**\nDocs for installation have this odd section which talks about displaying the link version:\nhttps://dyalog.github.io/link/4.1/Usage/Installation/\n??? detail \"How to display your installed Link version\"\n\n    ```apl\n          ⎕SE.Link.Version\n    4.1.3       \n    ```\n\n(From Dyalog/link#762)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/763",
+   "title": "Docs for link 4.2 mention a recordConfig which does not exist",
+   "body": "https://dyalog.github.io/link/4.2/Usage/ConfigFiles/#stop-and-trace-flags\nthis page says:\n\"This is enabled with the recordConfig setting.\" \n\nJust below that text, an example box says:\n\n]link.create linkdemo c:\\tmp\\linkdemo -recordflags\n\n(From Dyalog/link#763)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/764",
+   "title": "Link does not create a .linkconfig file even if it should with -recordflags set to keep stop bits",
+   "body": "**Describe the bug**\nLink does not create a .linkconfig file even if it should with -recordflags set to keep stop bits\n\n**To Reproduce**\nIf you have an existing directory, erase the .linkconfig file there\n\n]link.create # <your directory> -recordflags\n)ed <your function>\nset a stop bit\npress Escape to quit\n)off\n\n**Expected behaviour**\nthe .linkconfig file to be created and the stop saved\n\n\n**Session transcript**\n]link.create  # d:\\temp\\linktest -recordflags\nLinked: # ←→ \"d:\\temp\\linktest\"\n      )fns\nfoo     goo     hoo     joo     junk1   junk2   vcsVersDev      xWhere  \n⍝ here, I edit vcsVersDev, add a stop to line 5 and press Escape\n      )off\n\n**Desktop (please complete the following information):**\nWindows 10\n]tools.version\n Dyalog  21.0.53930 64-bit Unicode, BuildID 22db4ee6            \n OS      Windows 10 or Windows Server 2016 (10.0.19045) 64-bit  \n Link    4.2.1                                                  \n SALT    2.915                                                  \n UCMD    2.8                                                    \n .NET    .NET 10.0.8\n\n**Additional context**\nmet with Adám on teams and showed it to him via shared screen\n\nHe found that Link does create the .linkconfig file OK if it also creates the directory\n]link.break #\n]link.create # <some new directory> -recordflags\n\n(From Dyalog/link#764)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/765",
+   "title": "]configure # setting without colon sets the setting to ''",
+   "body": "**Describe the bug**\n`]configure # setting` without colon sets the setting to `''`\n\n**To Reproduce**\nSteps to reproduce the behaviour:\n1. `]create # \\tmp\\colon`\n2. `]configure # text:plain`\n3. `]configure # text`\n4. `]configure # text`\n5. Notice that the value was changed to nothing\n\n**Expected behaviour**\nOnly report, don't change\n\n**Desktop (please complete the following information):**\n - OS: Win\n - APL version: 20.0.53342\n - `⎕SE.Link.Version`: 4.1.6\n\n(From Dyalog/link#765)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/766",
+   "title": "Reestablishing a saved WS link produces poor warning message",
+   "body": "**Describe the bug**\nI don't think this is APL or Link version-specific because I've seen this well into the past, but when I )LOAD an old workspace that was saved with a ]Link then I get warnings, one of which is misspelled. Note the doubled-s and the lack of a space between the NS names.\n\n**Session transcript**\nLink Warning: IMPORTANT: 2 namespacess  linked in this workspace: #.DateTime#.Testing\n\n**Desktop (please complete the following information):**\n - OS: Win8.1/64\n - APL version: APL/W-64 21.0 Unicode - Version 21.0.54005\n - `⎕SE.Link.Version`: 4.2.2\n\n(From Dyalog/link#766)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/769",
+   "title": "Duplicated name FOO in error report when exporting foo, Foo, FOO",
+   "body": "**Describe the bug**\nDuplicated name `FOO` when exporting `foo`, `Foo`, `FOO`\n\n**To Reproduce**\n<pre>\n      FOO←Foo←foo←{⍵ ⍵}\n      ]create # \\t\\foo\nERRORS ENCOUNTERED: ⎕SE.Link.Create: File name case clash - try using caseCode←1:\n<mark>#.FOO</mark>\n#.Foo\n<mark>#.FOO</mark>\n#.foo\n</pre>\n**Expected behaviour**\nOne of each name.\n\n**Desktop (please complete the following information):**\n - OS: Windows 11 (10.0.26200) 64-bit\n - APL version: 20.0.53342 64-bit Unicode\n - `⎕SE.Link.Version`: 4.2.2\n\n(From Dyalog/link#769)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/770",
+   "title": "bad style links in 404 page",
+   "body": "**Describe the bug**\nThe [404 page](https://dyalog.github.io/link/latest/blah) appears broken/missing, but it seems it just uses too absolute paths (all the way to the root .io domain) and misses its css.\n\n(From Dyalog/link#770)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug",
+    "documentation"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/771",
+   "title": "Stops are lost when a file is independently `⎕FIX`ed",
+   "body": "**Describe the bug**\nStops are lost when a file is independently `⎕FIX`ed\n\n**To Reproduce**\nSteps to reproduce the behaviour:\n1. `⎕SE.Link.Create #'\\t\\sb' ⋄ ⎕ED 2 ⎕FIX'\\t\\sb\\foo.aplf'`\n2. Set a stop on line 1\n3. Press <EP> (<kbd>Esc</kbd>)\n4. `⎕STOP'foo'` gives `⍬`\n\n**Expected behaviour**\n`⎕STOP'foo'` gives `,1`\n\n**Desktop (please complete the following information):**\n - OS: Win11\n - APL version: [Dyalog 21.0.53977 Windows]\n - `⎕SE.Link.Version`: 4.2.2\n\n(From Dyalog/link#771)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/773",
+   "title": "Link should optionally bring *.md files (markdown) into the workspace",
+   "body": "It became common to store help pages in variables that are saved in *.md files because editing them in the workspace is so easy. For that reaon it would be nice if Link would support them in the same way it supports *.APLA files.\n\n(From Dyalog/link#773)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "enhancement"
+   ],
+   "comments": [
+    "We certainly cannot treat .md files as .apla because they don't contain valid array notation. Now, Link _does_ support plain text files — though it needs special double-extensions to tell it what to do with them, e.g. .LF.apla and .vec.apla — but those are intended to make it easier to edit an APL application's constants using 3rd party editors. Clearly, .md files are not that.\n\nThis request seems to be purely in order to use the IDE's build-in editor to edit arbitrary files — there's nothing special about .md files here over, say, .txt files — which is out of Link's scope, as it'd only clutter the workspace with unnecessary variables. Nevertheless, we could consider allowing a mapping of file extensions to the built-in ones, so one could e.g. declare .md → .LF.apla, but that'd be a separate issue."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/774",
+   "title": "HandleEventQueue reduces “renames” several times but does not check for it being empty",
+   "body": "Eventually it is used in what will be an overtake if it is empty, generating a NONCE ERROR.\n\n```\n      ]ToolS.Version\nDyalog  21.0.54005 64-bit Unicode, BuildID 572fcd4a \nOS      Windows 11 (10.0.26200) 64-bit              \nLink    4.2.3                                       \nSALT    2.915                                       \nUCMD    2.8                                         \n.NET    .NET Framework 4.8.9337.0                   \nWS      21.0       \n```\n\n(From Dyalog/link#774)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/776",
+   "title": "Don't warn about renames combined with other ops if rename is from outside linked folder",
+   "body": "Editing tools including Claude Code often create temp files and then rename them into linked folders, causing Watcher.HandleEventQueue to issue unnecessary warnings.\n\n(From Dyalog/link#776)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug"
+   ],
+   "comments": [
+    "Proposed strategy: Ignore renames if the target exists and the source was outside the linked folder."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/777",
+   "title": "FileSystem Watcher causes APLCORE with v200u32.54554",
+   "body": "**Describe the bug**\nI am getting an APLCORE in CITA runs. Also observed it locally simply from starting 200u43.54554.\nReported it to Vince who did not see this effect, but wrote:\n \n> I can reproduce the issue with 20.0.53960 32-bit Unicode\n> I set `DYALOG_NETCORE=1`\n> ]link.create # d:\\somedirectory\\here\n\n**Note:** I'm also running with `DYALOG_NETCORE=1`. Setting it to 0 removes the problem!\n\nA fatal error has occurred. Dyalog APL cannot continue.\n\nIn workspace  (process ID:47196)\n\nSyserror: 999 code: 0\n\nInterpreter BuildID: 0x9e1e4508\nInterpreter Created: Aug 23 2026 at 18:59:42\nInterpreter Version 20.0.54554.0 / 32 / Unicode\n\nSerial Number : 002753\n\nIf you choose to generate an aplcore, it will be saved as: \"C:\\aplcores\\v200u32Core3\".\nIt may be possible to retrieve objects from this file using:\n\n)COPY C:\\aplcores\\v200u32Core3.\n\nAPL Stack trace->\n⎕SE.Link.Watcher.MakeWatcher[25] r.(onChanged onCreated onDeleted onRenamed)←⊂⊂'WatchEvent'\n⎕SE.Link.Watcher.Watch[15] r←MakeWatcher args\n⎕SE.Dyalog.Callbacks.StartupSession[120] {0::⍬ ⋄ Watcher.Watch ⍵}\n⎕SE.Dyalog.Callbacks.StartupSession[120] ⎕SE.Link.(U.SetLinks Links,{0::⍬ ⋄ Watcher.Watch ⍵})opts ⍝ Watcher might fail\n⎕SE.StartupSession[12] startupSession←⎕SE.Dyalog.Callbacks.StartupSession\n<-End of APL Stack trace\n\n\n**Expected behaviour**\nContinue loading w/o core.\n\n**Desktop (please complete the following information):**\n - OS: Windows 11\n - APL version: 200u32.54554/53960\n - `⎕SE.Link.Version`: 4.2.4\n\n**Additional information**\nThe APLCORE is available at U:\\users\\mbaas\\bugreports\\260824-Core-999-0\n\n(From Dyalog/link#777)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": [
+    "The syserror 999 is due to a .NET exception:  \nSource\t\"Dyalog APL Delegate Assembly_DyalogDelegate_System_IO_FileSystemEventHandler\"\tstring\n\t\tStackTrace\t\"   at DyalogDelegate_System_IO_FileSystemEventHandler..ctor(IntPtr , IntPtr , Int32 , Int32 , String , Object , WeakReferences )\\r\\n   \nat System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)\\r\\n   \nat System.Reflection.MethodBaseInvoker.InterpretedInvoke_Constructor(Object obj, IntPtr* args) in System.Reflection\\\\MethodBaseInvoker.cs:line 57\\r\\n   \nat System.Reflection.MethodBaseInvoker.InvokeWithManyArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture) in System.Reflection\\\\MethodBaseInvoker.cs:line 238\"\tstring\n\nAn unhandled exception of type 'System.Reflection.TargetInvocationException' occurred in System.Private.CoreLib.dll\nException has been thrown by the target of an invocation.\n\nInner Exception:\nInvalidProgramException: Common Language Runtime detected an invalid program.\n\n\nThis exception was originally thrown at this call stack:\n    System.Reflection.MethodBaseInvoker.InterpretedInvoke_Constructor(object, nint*) in Method …",
+    "This doesn't seem like a Link issue to me(?)",
+    "Mantissed as m0023173"
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/779",
+   "title": "Version 4.2 Release Notes need to be created",
+   "body": "At the moment, we just have a copy of 4.1.\n\nThe 4.2 Release Notes should explain about Stop/Trace bits and otherwise link to the 4.1 release notes for differences to 4.0\n\n(From Dyalog/link#779)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug",
+    "HIGH",
+    "documentation"
+   ],
+   "comments": [
+    "Completed in #797"
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/780",
+   "title": "Add `-merge` switch: allow links into a non-empty namespace",
+   "body": "#472: loading a directory of utilities into `#` with `-flatten` fails when `#` already holds application code. Flattened links can be used to add functions to an existing flat workspace, so a non-empty target is a reasonable use case.\n\n```apl\n      ]link.create # /repos/tools -flatten\n⎕SE.Link.Create: Cannot link a non-empty namespace to a non-empty directory: # ←→ /repos/tools\n      ]link.create # /repos/tools -flatten -source=dir\n⎕SE.Link.Create: Destination namespace not empty: #\n```\n\n## Proposal\n\nNew Boolean option `merge` (`]link.create ... -merge`, `opts.merge←1`), default off. It is a link option like any other: accepted in `.linkconfig`, and shown as `Merge` by `]link.status -extended`.\n\n- Takes effect only when `source` is `dir`. If `source` is `auto`, `merge` resolves it to `dir`: the namespace is never exported to the directory, even an empty one, and a missing directory is an error. With `source=ns` the option is ignored.\n- Does not require `flatten`. Without it, subdirectories become namespaces as usual; the typical use is with `flatten`.\n- The target may be non-empty. Source files are loaded as usual. **If an item of the same name already exists in the namespace, the file replaces it.** All other items are left alone; they are not exported and are not associated with any file.\n- No reconciliation. With `merge`, the check that a non-empty namespace matches the directory is skipped. This also allows re-linking a flattened directory into a namespace that already holds its code, which that comparison does not currently handle for flattened links.\n- Still one link per namespace. A second `Create` on the same namespace reports \"Already linked\".\n- Normal write rules apply afterwards. A function fixed in the editor, or added with `]link.add`, is written to the root of the linked directory unless `getFilename` decides otherwise. This includes pre-existing functions that were not associated with a file when the link was created.\n- `]link.break` removes the link and leaves the namespace contents in place.\n\n```apl\n      ]link.create # /repos/tools -flatten -merge\n      NewFn←{⍵}\n      ]link.add NewFn              ⍝ → /repos/tools/NewFn.aplf\n```\n\nDocument the option in the **merge** section of `Link.Create.md`, and the extra extended-status field in `Link.Status.md`.\n\n(From Dyalog/link#780)",
+   "state": "closed",
+   "state_reason": "not_planned",
+   "labels": [
+    "enhancement"
+   ],
+   "comments": [
+    "This has deviated from what is actually required. \n\nThe actual requirement is a switch to allow links into non-empty namespace - so scope has been reduced to that.",
+    "Not required."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/781",
+   "title": "`-flatten` reports a false clash between a directory and a same-named file",
+   "body": "With `-flatten`, subdirectories never become namespaces, but `U.FixFiles` still gives each directory an APL name before its clash check. A directory and a same-named function or script therefore block the whole link.\n\n## Reproduce\n\n```text\nA:  foo.aplf   foo/code.aplf\nB:  foo/foo.aplf   bar.aplf\nC:  util.apln   util/x.aplf\n```\n\n```apl\n      ]link.create #.x <A> -flatten -source=dir\n⎕SE.Link.Create: Files produce clashing APL names:\n <A>/foo.aplf  ←→  #.x.foo\n <A>/foo/      ←→  #.x.foo\n```\n\nB and C fail the same way (`foo/` vs `foo/foo.aplf`; `util.apln` vs `util/`). Without `-flatten`, B links fine and A and C are genuine clashes.\n\n## Expected\n\n| Layout | Names in `#.x` with `-flatten` |\n|---|---|\n| A | `foo` `code` |\n| B | `foo` `bar` |\n| C | `util` (script) `x` |\n\nTwo *files* defining the same flattened name (`a/Foo.aplf` + `b/Foo.aplf`) must still error.\n\n## Fix\n\n`Utils.apln:1338-1348` (`FixFiles`): exclude directory entries from `allnames` before the clash check when `opts.flatten` is set. Do not simply delete the rows: they also drive per-directory loading and the early load of `quadVars.apln` (`:1395-1421`). Check the `fastLoad` branch (`:1336-1340`, late clash check at `:1446`) and the two \"mismatch between unscripted namespaces and directories\" checks (`:1403`, `:1423`).\n\n## Tests\n\nAdd to `Test/test_flattened.aplf`: A, B, C link with the names above; `a/Foo.aplf` + `b/Foo.aplf` still errors; B still works and A, C still fail without flatten; repeat with `fastLoad`.\n\n(From Dyalog/link#781)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/782",
+   "title": "`]link.diff` and `]link.resync` see every item as unmatched for `-flatten` links",
+   "body": "For a link created with `-flatten`, `U.Diff` reports every workspace item as \"Item has no corresponding file\" and every file as \"File has no corresponding item\", even when nothing has changed. So `]link.diff` is useless, `]link.resync -proceed` re-reads and re-writes everything, the startup check in `WSLoaded` always sees a stale link, and `]link.create` after `]link.break` fails with \"Destination namespace not empty\", because the fix for #230 relies on finding no differences and a flattened link always reports differences.\n\n## Reproduce\n\n```apl\n      ]link.create #.T G -flatten -source=dir\n      ]link.diff #.T                 ⍝ nothing changed\n→ #.T      Item has no corresponding file\n→ #.T.Foo  Item has no corresponding file\n→ #.T.Goo  Item has no corresponding file\n←  G/          File has no corresponding item\n←  G/Foo.aplf  File has no corresponding item\n←  G/Goo.aplf  File has no corresponding item\n```\n\nWithout `-flatten` the diff is empty.\n\n(From Dyalog/link#782)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/785",
+   "title": "Preloaded Link: breakpoints don't persist on first set",
+   "body": "With `ALWAYSREFORMAT=0` and `preloaded=1`\n1. Open editor on a preloaded function.\n2. Set one or more breakpoints\n3. Close editor\n\nLink signals an `INDEX ERROR` on the line below:\n\nhttps://github.com/Dyalog/link/blob/ab880d3a05dc52bb037acfcea052e4420614d843/StartupSession/Link/Fix.aplf#L109\n\nIf `ALWAYSREFORMAT=1`, there is no error, but the breakpoint doesn't persist on the first attempt, so have to open the editor a second time and set the breakpoint again.\n\n(From Dyalog/link#785)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [],
+   "comments": [
+    "Could you share the Dyalog and Link versions and the full INDEX ERROR message or stack? Also, was this link created with `-recordflags` (or `recordFlags:1`)? The report gives the `ALWAYSREFORMAT` and `preloaded` settings, but not whether Link was asked to persist source flags; those details should help identify where the first breakpoint update fails."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/786",
+   "title": "Preloaded is missing from UCMD",
+   "body": "**Describe the bug**\nPreloaded is missing from UCMD\n\n**To Reproduce**\n```\n                  ]link.create -preloaded\n* Command Execution Failed: unknown modifier: \"preloaded\"\n```\n**Expected behaviour**\nIt is there.\n\n(From Dyalog/link#786)",
+   "state": "open",
+   "state_reason": null,
+   "labels": [
+    "bug",
+    "discuss"
+   ],
+   "comments": [
+    "Implemented in PR #794: the Create UCMD now declares and forwards -preloaded, and the regression suite exercises the UCMD path. git diff --check passed. The Dyalog APL suite could not run locally because this environment has no Dyalog executable.",
+    "We may want to discuss this further, perhaps it would be wiser to remove the mention of preloaded from the UCMD documentation, and keep it a \"API only\" option.",
+    "Could you confirm the intended interface before #794 is updated? The latest note on this issue suggests keeping `preloaded` API-only, while #794 adds `-preloaded` to the Create UCMD. Should the UCMD modifier remain supported for scripted startup/build use, or should the option stay API-only? The existing change can follow that choice once it is clear."
+   ]
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/788",
+   "title": "`-source=dir` refuses a namespace that holds more than the directory",
+   "body": "**Describe the bug**\n`]link.create -source=dir` fails with \"Destination namespace not empty\" when the target namespace holds items that the directory does not define, even though `source=dir` says the directory is the source. The Usage guide (\"Starting a new project\") says that when both sides hold different code \"you will need to specify the `source` option\"; the Link.Create API page says `dir` requires an empty namespace. The code follows the API page. Since #230 the only exception is a namespace whose content is identical to the directory.\n\nOne case where this matters: linking a partial checkout of a repository into a workspace that already holds the whole application. Link 2.0 allowed this.\n\n**To Reproduce**\n1. A directory `ltest` holding `app/code.aplf`, `foo/code.aplf`, `test/code.aplf`, `utils/code.aplf`, each defining the function named after its directory.\n2. `]link.create -flatten # ltest`, then `]link.break #`. The workspace now holds the four functions.\n3. Edit `app/code.aplf` (or `⎕EX'app'`; either way the workspace no longer matches the directory).\n4. `]link.create -flatten -source=dir # ltest`\n\n**Expected behaviour**\nThe link is created. Items the directory defines are replaced from their files; items it does not define are left alone.\n\n**Session transcript**\n```\n      ]link.create -flatten # ltest\nLinked: # ←→ \"/path/to/ltest\"\n      ]link.break #\nUnlinked: #\n      ⍝ edit app/code.aplf\n      ]link.create -flatten # ltest\nERRORS ENCOUNTERED: ⎕SE.Link.Create: Cannot link a non-empty namespace to a non-empty directory: # ←→ \"ltest\"\n      ]link.create -flatten -source=dir # ltest\nERRORS ENCOUNTERED: ⎕SE.Link.Create: Destination namespace not empty: #\n```\n\n**Desktop**\n - OS: Linux\n - APL version: 21.0 Unicode 64-bit\n - `⎕SE.Link.Version`: 4.2.5\n\n**Additional context**\n`Create.aplf` line ~98: the `emptydir⍱emptyns` block requires `U.Diff` to be empty regardless of whether `source` was given explicitly or defaulted from `auto`. Related: #136 (introduced the guard), #230, #472, #782.\n\n(From Dyalog/link#788)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/789",
+   "title": "Nothing is tied under `watch=ns`, so edits to flattened items are written to the link root",
+   "body": "**Describe the bug**\n`U.FixTie` returns 1 only when `watch` is `both`. With `watch=ns` (the only possibility without .NET) no item is tied to its file. For an untied item in a flattened link `U.DetermineFileName` does not know which subdirectory it came from and writes to the link root, so editing a function in APL creates a new `<name>.aplf` at the root and leaves the original file untouched. `]link.refresh` does not help, since it also fixes without ties.\n\nThe restriction dates from #140 (August 2020): at the time, deleting a tied script's file lost its source. After 19.0, `⎕NR` and `⎕SRC` of a tied item survive deletion of the file, so the reason no longer applies.\n\n**To Reproduce**\n1. A directory `ltest` holding `app/code.aplf`, `foo/code.aplf`, `test/code.aplf`, `utils/code.aplf`, each defining the function named after its directory.\n2. `]link.create -flatten -watch=ns # ltest`\n3. Edit `app` in the editor (or `#'app' 'app'⎕SE.Link.Fix 'r←app' 'r←46'`).\n4. Look at the directory.\n\n**Expected behaviour**\n`app/code.aplf` is updated. Nothing is created at the root.\n\n**Session transcript**\n```\n      ]link.create -flatten -watch=ns # ltest\nLinked: # → \"/path/to/ltest\"\n      4⊃5179⌶'app'                  ⍝ no tie\n\n      #'app' 'app'⎕SE.Link.Fix 'r←app' 'r←46'\n      ⊃⎕NINFO⍠1⊢'ltest/*.aplf'\n ltest/app.aplf                     ⍝ new file; app/code.aplf still holds r←42\n```\n\n**Desktop**\n - OS: Linux\n - APL version: 21.0 Unicode 64-bit\n - `⎕SE.Link.Version`: 4.2.5\n\n**Additional context**\n`Utils.apln`, `FixTie`: `tie←'both'≡link.watch`, from #140 (4a2fdb1), moved into FixTie by #99 (b962cc1). Non-flattened links are not affected because the default path follows the namespace structure. `getFilename` can redirect the write but not suppress it (returning `''` means \"use the default\").\n\n(From Dyalog/link#789)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/795",
+   "title": "test_create fails on Unix-based platforms: assert_create[5] (source as typed lost)",
+   "body": "`assert_create[5]` in `test_create` fails on Linux and passes on Windows.\n\nThe test writes files with CRLF (QNPUT). The source=ns Create rewrites the tied files with LF, the interpreter sees the checksum change, and `62 ⎕ATX` returns the ⎕NR form. Introduced in 539d943 (#230).\n\n(From Dyalog/link#795)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "bug"
+   ],
+   "comments": []
+  },
+  {
+   "source": "https://github.com/Dyalog/link/issues/798",
+   "title": "Warn rather than Error on Export if current filesystem is case sensitive",
+   "body": "**Is your feature request related to a problem? Please describe.**\nI hit an error attempting to ]Link.Export a workspace with functions `main` and `MAIN`:\n```apl\n      ]link.create # /tmp/s\nERRORS ENCOUNTERED: ⎕SE.Link.Create: File name case clash - try using caseCode←1:\n#.MEAN\n#.Mean\n```\nOn unix systems with case-sensitive file systems, why should I be required to use the caseCode←1 option ?\n\n**Describe the solution you'd like**\nWarn rather than error on ]Link.Export if the  file systems in use is case-sensitive\n\n(From Dyalog/link#798)",
+   "state": "closed",
+   "state_reason": "completed",
+   "labels": [
+    "enhancement"
+   ],
+   "comments": [
+    "Closing after discussion with @mkromberg - detecting this safely is fraught, and it could leave the system in a precarious position."
+   ]
+  }
+ ]
+}

@@ -33,8 +33,18 @@ You need Docker with Compose. The image builds natively on both arm64 (Apple Sil
 ```bash
 cp .env.example .env        # optional: change the database password
 docker compose up -d --build --scale worker=3 --wait
-test/smoke.sh               # end-to-end tests through nginx
+db/seed/load.sh             # demo data: 40 real issues from Dyalog/link
 ```
+
+The demo data is a snapshot of recent issues from [Dyalog/link](https://github.com/Dyalog/link) (`db/seed/link-issues.json`), loaded through the API like any other client. `db/seed/fetch.py` refreshes the snapshot (it needs the GitHub CLI).
+
+To run the tests:
+
+```bash
+test/ci.sh                  # builds a separate test stack with its own database, runs test/smoke.sh, removes it
+```
+
+The tests never touch the demo stack or its data.
 
 Try it:
 
@@ -43,9 +53,9 @@ curl -s -X POST localhost:8080/labels -H 'Content-Type: application/json' \
      -d '{"name":"bug","color":"d73a4a"}'
 curl -s -X POST localhost:8080/issues -H 'Content-Type: application/json' \
      -d '{"title":"⍳ fails on an empty argument","labels":["bug"]}'
-curl -s -X POST localhost:8080/issues/1/comments -H 'Content-Type: application/json' \
+curl -s -X POST localhost:8080/issues/41/comments -H 'Content-Type: application/json' \
      -d '{"body":"Reproduced with ⍳0"}'
-curl -s -X PATCH localhost:8080/issues/1 -H 'Content-Type: application/json' \
+curl -s -X PATCH localhost:8080/issues/41 -H 'Content-Type: application/json' \
      -d '{"state":"closed"}'
 curl -s 'localhost:8080/issues?state=all&labels=bug'
 ```
@@ -82,7 +92,7 @@ URLs, fields and status codes follow [GitHub's Issues REST API](https://docs.git
 | GET, PATCH, DELETE | `/labels/{name}` |
 
 Known limitations:
-- Characters outside Unicode's Basic Multilingual Plane, such as emoji, are silently dropped (SQAPL passes text as UCS-2). APL symbols and accented letters are fine.
+- Text with characters outside Unicode's Basic Multilingual Plane (emoji, styled letters) is refused with a 422, because SQAPL can't pass it safely. APL symbols and accented letters are fine.
 - A label whose name contains `/` can be created but not reached by name in a URL: Jarvis decodes `%2F` before Stark matches routes.
 - While Postgres restarts, requests fail for a few seconds (500s and nginx 502s) until every worker has restarted and reconnected.
 - JSON keys come back in alphabetical order.
@@ -104,6 +114,8 @@ The design document (top-down, with diagrams and a step-through of a request) is
 | `worker/app/Db.apln` | the database connection |
 | `worker/hello-db.apls` | a first check that APL can reach Postgres |
 | `console/` | the browser client: `api.js` (every REST call), `app.js` (Vue components) |
-| `test/smoke.sh` | end-to-end tests |
+| `db/seed/` | demo data from Dyalog/link, and the scripts that fetch and load it |
+| `test/ci.sh` | runs the tests in a separate, throwaway stack |
+| `test/smoke.sh` | the end-to-end tests |
 | `docs/design.html` | the design document |
 | `docs/build-log.md` | how it was built, step by step, including what went wrong |

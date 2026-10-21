@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# End-to-end tests against the running stack, through nginx.
-# Usage: test/smoke.sh [test_name ...]   (no names: run every test)
+# End-to-end tests through nginx. Normally run by test/ci.sh, which starts a
+# separate test stack (own database) on port 18080, so the demo data on 8080
+# is never touched. Usage: test/smoke.sh [test_name ...]  (no names: run all)
 set -uo pipefail
 
-BASE=${BASE:-http://localhost:8080}
+BASE=${BASE:-http://localhost:18080}
 RUN=$(date +%s)$RANDOM          # suffix that keeps each run's data apart
 FAILS=0
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
@@ -341,6 +342,7 @@ test_responses_match_spec() {
     expect_eq "GET /health matches spec" "$(conforms "$(spec_schema /health get 200)" "$BODY")" true
 }
 
+
 # A JSON string of n characters
 long_text() { python3 -c "import sys; print('x'*int(sys.argv[1]))" "$1"; }
 
@@ -397,7 +399,7 @@ test_large_list() {
     expect_eq "large list count" "$(jqb length)" 18
 }
 
-CONSOLE=${CONSOLE:-http://localhost:3000}
+CONSOLE=${CONSOLE:-http://localhost:13000}
 
 test_console_served() {
     local status page
