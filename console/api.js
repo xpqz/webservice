@@ -7,9 +7,9 @@ let nextId = 1
 export const log = reactive([])     // newest first, last 50 requests
 
 export async function call(method, path, body) {
-  const entry = { id: nextId++, method, path, request: body, status: '…', worker: '', ms: 0, response: null }
-  log.unshift(entry)
+  log.unshift({ id: nextId++, method, path, request: body, status: '…', worker: '', ms: 0, response: null })
   log.splice(50)
+  const entry = log[0]    // the reactive copy, so the log updates as the call completes
   const started = performance.now()
   try {
     const res = await fetch(API + path, {
