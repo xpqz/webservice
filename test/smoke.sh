@@ -270,6 +270,19 @@ test_comment_unknown_issue() {
     expect_eq "comment on unknown issue" "$STATUS" 404
 }
 
+test_issue_list_sort_updated() {
+    new_label "s-$RUN"
+    new_issue "{\"title\":\"older $RUN\",\"labels\":[\"s-$RUN\"]}"; local older=$NUM
+    new_issue "{\"title\":\"newer $RUN\",\"labels\":[\"s-$RUN\"]}"
+    req PATCH "/issues/$older" '{"state":"closed"}'
+    req GET "/issues?labels=s-$RUN&state=all"
+    expect_eq "default sort is created" "$(jqb '.[0].title')" "newer $RUN"
+    req GET "/issues?labels=s-$RUN&state=all&sort=updated"
+    expect_eq "sort=updated puts the just-closed issue first" "$(jqb '.[0].title')" "older $RUN"
+    req GET "/issues?labels=s-$RUN&state=all&sort=bogus"
+    expect_eq "unknown sort falls back to created" "$(jqb '.[0].title')" "newer $RUN"
+}
+
 # A JSON string of n characters
 long_text() { python3 -c "import sys; print('x'*int(sys.argv[1]))" "$1"; }
 

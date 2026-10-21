@@ -251,3 +251,23 @@ test/smoke.sh test_console_served test_cors_for_console
 - First design pass: the label pills (white text with a shadow on the label colour) were unreadable on light colours. Labels are now plain bordered tags with a small colour dot, and dates show as `2026-10-20 16:09`.
 
 **Commit:** `Browser console as a separate REST client`
+
+## Task 11: Console polish
+
+**Did:** Small changes to the console, each one a few lines:
+- **Draggable dividers.** You can drag the bar between the list and the issue, and the bar above the request log. The two sizes are CSS variables that a 25-line pointer handler updates.
+- **Click a label to filter by it.** The label filter moved into the console's shared state, so any label pill can set it.
+- **Open an issue on load.** The console starts on the newest open issue, or on the most recently closed one if there are none. "Most recently closed" needed one more piece of GitHub's API, `sort=updated`, since closing an issue updates it. That's one more argument to the `list_issues` SQL function and to the handler call.
+
+**Commands:**
+```bash
+# the schema changed; either start over (loses data) ...
+docker compose down -v && docker compose up -d --build --scale worker=3 --wait
+# ... or apply just the changed objects (CREATE OR REPLACE VIEW issue_doc, the new
+# list_issues) to the running database with psql
+curl -s 'localhost:8080/issues?state=closed&sort=updated&per_page=1'
+```
+
+**Broke:** nothing.
+
+**Commit:** `Open the newest issue on load; sort=updated`

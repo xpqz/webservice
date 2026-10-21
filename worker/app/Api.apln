@@ -63,7 +63,7 @@
       q←req.QueryParams
       state←q Text'state'
       :If 0=≢state ⋄ state←'open' ⋄ :EndIf
-      r←#.Db.Doc(⊂'SELECT list_issues(',T,', ',T,', ',I,', ',I,')'),state(q Text'labels'),Page req
+      r←#.Db.Doc(⊂'SELECT list_issues(',T,', ',T,', ',T,', ',I,', ',I,')'),state(q Text'labels')(q Text'sort'),Page req
     ∇
 
     ∇ r←GetIssue req

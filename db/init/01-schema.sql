@@ -108,7 +108,8 @@ SELECT i.number, i.state, i.created_at,
            'created_at',   iso(i.created_at),
            'updated_at',   iso(i.updated_at),
            'closed_at',    iso(i.closed_at)
-       ) AS doc
+       ) AS doc,
+       i.updated_at
 FROM issues i;
 
 CREATE VIEW comment_doc AS
@@ -127,17 +128,20 @@ CREATE FUNCTION list_labels(lim int, off int) RETURNS json LANGUAGE sql STABLE A
 $$;
 
 -- One page of issues, newest first. want_state is 'open', 'closed' or 'all';
--- want_labels is a comma-separated list of names that must all be present.
-CREATE FUNCTION list_issues(want_state text, want_labels text, lim int, off int) RETURNS json
+-- want_labels is a comma-separated list of names that must all be present;
+-- want_sort is 'updated' (most recently changed first) or anything else for 'created'.
+CREATE FUNCTION list_issues(want_state text, want_labels text, want_sort text, lim int, off int) RETURNS json
 LANGUAGE sql STABLE AS $$
-    SELECT coalesce(json_agg(doc ORDER BY created_at DESC, number DESC), '[]')
-    FROM (SELECT doc, created_at, number FROM issue_doc d
+    SELECT coalesce(json_agg(doc ORDER BY sort_key DESC, number DESC), '[]')
+    FROM (SELECT doc, number,
+                 CASE WHEN want_sort = 'updated' THEN updated_at ELSE created_at END AS sort_key
+          FROM issue_doc d
           WHERE want_state IN ('all', d.state)
             AND NOT EXISTS (
                 SELECT 1 FROM unnest(string_to_array(NULLIF(want_labels, ''), ',')) wanted
                 WHERE NOT EXISTS (SELECT 1 FROM issue_labels il JOIN labels l ON l.id = il.label_id
                                   WHERE il.issue_number = d.number AND lower(l.name) = lower(wanted)))
-          ORDER BY created_at DESC, number DESC LIMIT lim OFFSET off) page
+          ORDER BY sort_key DESC, number DESC LIMIT lim OFFSET off) page
 $$;
 
 -- Change the given fields of an issue; '' means "leave as it is".

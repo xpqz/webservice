@@ -200,6 +200,16 @@ createApp({
   components: { IssueList, IssueView, IssueForm, RequestLog },
   setup() {
     const size = reactive({ list: 420, log: 224 })     // pixels
+
+    // Start on the newest open issue, or else the most recently closed one
+    onMounted(async () => {
+      try {
+        const [open] = await call('GET', '/issues?state=open&per_page=1')
+        const [closed] = open ? [] : await call('GET', '/issues?state=closed&sort=updated&per_page=1')
+        const first = open ?? closed
+        if (first && !store.selected && !store.creating) store.open(first.number)
+      } catch { /* the list shows the error */ }
+    })
     return { store, size, drag: resizer(size) }
   },
   template: `

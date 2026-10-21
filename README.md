@@ -73,7 +73,7 @@ URLs, fields and status codes follow [GitHub's Issues REST API](https://docs.git
 
 | Method | Path |
 |--------|------|
-| GET, POST | `/issues` (list filters: `state`, `labels`, `per_page`, `page`) |
+| GET, POST | `/issues` (list: `state`, `labels`, `sort` = `created`/`updated`, `per_page`, `page`) |
 | GET, PATCH | `/issues/{number}` |
 | GET, POST | `/issues/{number}/comments` |
 | GET, POST | `/issues/{number}/labels` |
