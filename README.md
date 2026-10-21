@@ -8,7 +8,7 @@ Most of the stack is standard parts: the official `postgres` and `nginx` images,
 
 The accompanying blog post is in [`docs/post.md`](docs/post.md).
 
-## Licence: read this first
+## Licence
 
 The worker image downloads and installs **Dyalog APL** from dyalog.com while it builds. Dyalog is free for non-commercial use but is **not free software**. By building the image you accept Dyalog's licence terms: <https://www.dyalog.com/uploads/documents/Developer_Software_Licence.pdf>. The licence also ships inside the image at `/opt/mdyalog/20.0/64/unicode/LICENSE`. This repository contains no Dyalog software. Build images locally; don't publish them.
 
