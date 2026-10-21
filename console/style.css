@@ -31,6 +31,8 @@ body.dragging-y { cursor: row-resize; user-select: none; }
 .closed { color: var(--purple); font-size: .8rem; }
 
 .label { display: inline-flex; align-items: center; gap: .3rem; max-width: 12rem; padding: 0 .45rem; border: 1px solid var(--line); border-radius: 1rem; font-size: .75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.label { cursor: pointer; }
+.label:hover { border-color: var(--muted); color: var(--text); }
 .label i { flex: none; width: .55rem; height: .55rem; border-radius: 50%; }
 
 .detail { overflow: auto; padding: 0 1.2rem 1rem; }

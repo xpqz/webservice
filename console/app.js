@@ -7,22 +7,24 @@ const PER_PAGE = 20
 const when = iso => iso.slice(0, 16).replace('T', ' ')
 
 // What the whole page shares: the open issue, whether we're writing a new
-// one, and a counter that tells the list to reload after any change.
+// one, the label the list is filtered by, and a counter that tells the list
+// to reload after any change.
 const store = reactive({
   selected: null,
   creating: false,
+  label: '',
   changes: 0,
   open(number) { this.selected = number; this.creating = false },
 })
 
 const IssueList = {
   setup() {
-    const filter = reactive({ state: 'open', label: '', page: 1 })
+    const filter = reactive({ state: 'open', page: 1 })
     const issues = ref([]), labels = ref([]), error = ref('')
 
     async function load() {
       const query = new URLSearchParams({ state: filter.state, page: filter.page, per_page: PER_PAGE })
-      if (filter.label) query.set('labels', filter.label)
+      if (store.label) query.set('labels', store.label)
       try { issues.value = await call('GET', `/issues?${query}`); error.value = '' }
       catch (e) { error.value = describe(e) }
     }
@@ -31,7 +33,7 @@ const IssueList = {
       labels.value = await call('GET', '/labels?per_page=100').catch(() => [])
       load()
     })
-    watch(() => [filter.state, filter.label], () => { filter.page = 1; load() })
+    watch(() => [filter.state, store.label], () => { filter.page = 1; load() })
     watch(() => [filter.page, store.changes], load)
     return { filter, issues, labels, error, store, PER_PAGE }
   },
@@ -41,7 +43,7 @@ const IssueList = {
         <select v-model="filter.state">
           <option>open</option><option>closed</option><option>all</option>
         </select>
-        <select v-model="filter.label">
+        <select v-model="store.label">
           <option value="">any label</option>
           <option v-for="l in labels" :key="l.id" :value="l.name">{{ l.name }}</option>
         </select>
@@ -51,7 +53,7 @@ const IssueList = {
         <li v-for="i in issues" :key="i.number" :class="{ active: i.number === store.selected }"
             @click="store.open(i.number)">
           <span class="number">#{{ i.number }}</span> <span class="title">{{ i.title }}</span>
-          <span v-for="l in i.labels" :key="l.id" class="label"><i :style="{ background: '#' + l.color }"></i>{{ l.name }}</span>
+          <span v-for="l in i.labels" :key="l.id" class="label" :title="'Show issues labelled ' + l.name" @click.stop="store.label = l.name"><i :style="{ background: '#' + l.color }"></i>{{ l.name }}</span>
           <span v-if="i.state === 'closed'" class="closed">closed</span>
         </li>
         <li v-if="!issues.length" class="empty">No issues</li>
@@ -118,7 +120,7 @@ const IssueView = {
     }
 
     watch(() => store.selected, () => { editing.value = false; load() }, { immediate: true })
-    return { issue, comments, comment, error, editing, setState, addComment, load, when }
+    return { issue, comments, comment, error, editing, setState, addComment, load, when, store }
   },
   template: `
     <section v-if="issue" class="issue">
@@ -128,7 +130,7 @@ const IssueView = {
         <p class="meta">
           <span :class="['state', issue.state]">{{ issue.state }}</span>
           <span v-if="issue.state_reason">({{ issue.state_reason.replace('_', ' ') }})</span>
-          <span v-for="l in issue.labels" :key="l.id" class="label"><i :style="{ background: '#' + l.color }"></i>{{ l.name }}</span>
+          <span v-for="l in issue.labels" :key="l.id" class="label" :title="'Show issues labelled ' + l.name" @click="store.label = l.name"><i :style="{ background: '#' + l.color }"></i>{{ l.name }}</span>
           <span class="dates">opened {{ when(issue.created_at) }}</span>
         </p>
         <div class="actions">
