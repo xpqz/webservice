@@ -24,5 +24,4 @@ ARG STARK_VERSION=v0.2.4
 ADD https://raw.githubusercontent.com/dyalog-labs/stark/${STARK_VERSION}/APLSource/Stark.aplc /opt/stark/Stark.aplc
 ADD https://raw.githubusercontent.com/dyalog-labs/stark/${STARK_VERSION}/APLSource/Jarvis.aplc /opt/stark/Jarvis.aplc
 
-COPY hello-db.apls /worker/
 COPY app/ /worker/app/
