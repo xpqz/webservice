@@ -489,8 +489,8 @@ docker compose up -d --build --scale worker=3 --wait
 
 open http://localhost:3000 in a browser. It opens on the newest open issue. Click any issue in the list to read it, use the filters at the top to switch between open, closed and all issues or to pick a label, and click a label on an issue to filter by it. New issue, Edit, Close/Reopen and the comment box all work. The panel along the bottom lists every request the page has made; click one to see the JSON that went out and came back.
 
-## Costs
+## Final thoughts
 
 Most "cloud first", API-centric applications today will be built in a similar fashion, at least conceptually. The building blocks may be different, but the overall shape will be similar. Once you know how to connect such building blocks, all applications start to look the same, with the business logic narrowly contained, and everything else fairly boiler-plate. Note that the stack itself doesn't care what language your application's business logic is expressed in. 
 
-It does, however, mean that us APLers will need to learn a few new tricks, some of which may seem daunting at first blush, like container orchestration, load balancers etc. Also, the application I've shown here is missing a lot of pieces you would need in a proper production setting, like authentication, rollbacks, backups, logging etc. 
+It does, however, mean that us APLers will need to learn a few new tricks, some of which may seem daunting at first blush, like container orchestration, load balancers etc. Also, the application I've shown here is missing a lot of pieces you would need in a proper production setting, like authentication, rollbacks, backups, logging etc. The database is completely unsecured. 
