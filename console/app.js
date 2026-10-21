@@ -3,6 +3,9 @@ import { call, describe, log } from './api.js'
 
 const PER_PAGE = 20
 
+// 2026-10-20T16:09:52Z → 2026-10-20 16:09 (UTC)
+const when = iso => iso.slice(0, 16).replace('T', ' ')
+
 // What the whole page shares: the open issue, whether we're writing a new
 // one, and a counter that tells the list to reload after any change.
 const store = reactive({
@@ -47,8 +50,8 @@ const IssueList = {
       <ul>
         <li v-for="i in issues" :key="i.number" :class="{ active: i.number === store.selected }"
             @click="store.open(i.number)">
-          <span class="number">#{{ i.number }}</span> {{ i.title }}
-          <span v-for="l in i.labels" :key="l.id" class="label" :style="{ background: '#' + l.color }">{{ l.name }}</span>
+          <span class="number">#{{ i.number }}</span> <span class="title">{{ i.title }}</span>
+          <span v-for="l in i.labels" :key="l.id" class="label"><i :style="{ background: '#' + l.color }"></i>{{ l.name }}</span>
           <span v-if="i.state === 'closed'" class="closed">closed</span>
         </li>
         <li v-if="!issues.length" class="empty">No issues</li>
@@ -115,7 +118,7 @@ const IssueView = {
     }
 
     watch(() => store.selected, () => { editing.value = false; load() }, { immediate: true })
-    return { issue, comments, comment, error, editing, setState, addComment, load }
+    return { issue, comments, comment, error, editing, setState, addComment, load, when }
   },
   template: `
     <section v-if="issue" class="issue">
@@ -125,8 +128,8 @@ const IssueView = {
         <p class="meta">
           <span :class="['state', issue.state]">{{ issue.state }}</span>
           <span v-if="issue.state_reason">({{ issue.state_reason.replace('_', ' ') }})</span>
-          <span v-for="l in issue.labels" :key="l.id" class="label" :style="{ background: '#' + l.color }">{{ l.name }}</span>
-          <span class="dates">opened {{ issue.created_at }}</span>
+          <span v-for="l in issue.labels" :key="l.id" class="label"><i :style="{ background: '#' + l.color }"></i>{{ l.name }}</span>
+          <span class="dates">opened {{ when(issue.created_at) }}</span>
         </p>
         <div class="actions">
           <button @click="editing = true">Edit</button>
@@ -136,7 +139,7 @@ const IssueView = {
         <p class="body">{{ issue.body ?? 'No description.' }}</p>
         <h3>Comments ({{ comments.length }})</h3>
         <div v-for="c in comments" :key="c.id" class="comment">
-          <span class="dates">{{ c.created_at }}</span>
+          <span class="dates">{{ when(c.created_at) }}</span>
           <p>{{ c.body }}</p>
         </div>
         <form @submit.prevent="addComment" class="add-comment">

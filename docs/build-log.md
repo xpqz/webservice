@@ -247,5 +247,7 @@ test/smoke.sh test_console_served test_cors_for_console
 
 **Broke:**
 - After editing `nginx/nginx.conf`, `docker compose up` didn't restart nginx, because a changed bind-mounted file isn't a changed container. `docker compose restart nginx` picks it up.
+- Later the console suddenly answered `403 Forbidden`. A `git checkout` had deleted and re-created the `console/` directory, and the container's bind mount still pointed at the deleted one, so it served an empty folder. `docker compose up -d --force-recreate console` re-attaches it.
+- First design pass: the label pills (white text with a shadow on the label colour) were unreadable on light colours. Labels are now plain bordered tags with a small colour dot, and dates show as `2026-10-20 16:09`.
 
 **Commit:** `Browser console as a separate REST client`
