@@ -171,21 +171,51 @@ const RequestLog = {
     </section>`,
 }
 
+// Drag handler for the two dividers: x resizes the list, y the request log
+function resizer(size) {
+  return function drag(axis, down) {
+    const key = axis === 'x' ? 'list' : 'log'
+    const from = size[key], start = axis === 'x' ? down.clientX : down.clientY
+    const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi)
+    function move(e) {
+      const delta = (axis === 'x' ? e.clientX : e.clientY) - start
+      size[key] = axis === 'x'
+        ? clamp(from + delta, 200, innerWidth - 300)
+        : clamp(from - delta, 40, innerHeight - 200)
+    }
+    function up() {
+      removeEventListener('pointermove', move)
+      removeEventListener('pointerup', up)
+      document.body.classList.remove('dragging-' + axis)
+    }
+    addEventListener('pointermove', move)
+    addEventListener('pointerup', up)
+    document.body.classList.add('dragging-' + axis)
+  }
+}
+
 createApp({
   components: { IssueList, IssueView, IssueForm, RequestLog },
-  setup() { return { store } },
+  setup() {
+    const size = reactive({ list: 420, log: 224 })     // pixels
+    return { store, size, drag: resizer(size) }
+  },
   template: `
-    <header>
-      <h1>Issues</h1>
-      <button @click="store.creating = true">New issue</button>
-    </header>
-    <main>
-      <issue-list></issue-list>
-      <div class="detail">
-        <issue-form v-if="store.creating"></issue-form>
-        <issue-view v-else-if="store.selected"></issue-view>
-        <p v-else class="empty">Select an issue, or create one.</p>
-      </div>
-    </main>
-    <request-log></request-log>`,
+    <div class="layout" :style="{ '--list': size.list + 'px', '--log': size.log + 'px' }">
+      <header>
+        <h1>Issues</h1>
+        <button @click="store.creating = true">New issue</button>
+      </header>
+      <main>
+        <issue-list></issue-list>
+        <div class="divider-x" @pointerdown.prevent="drag('x', $event)"></div>
+        <div class="detail">
+          <issue-form v-if="store.creating"></issue-form>
+          <issue-view v-else-if="store.selected"></issue-view>
+          <p v-else class="empty">Select an issue, or create one.</p>
+        </div>
+      </main>
+      <div class="divider-y" @pointerdown.prevent="drag('y', $event)"></div>
+      <request-log></request-log>
+    </div>`,
 }).mount('#app')

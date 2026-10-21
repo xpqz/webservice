@@ -10,8 +10,14 @@ code, pre, .log { font-family: ui-monospace, "APL385 Unicode", Menlo, monospace;
 header { display: flex; justify-content: space-between; align-items: center; height: 3rem; padding: 0 1rem; border-bottom: 1px solid var(--line); }
 header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
 
-main { display: grid; grid-template-columns: minmax(18rem, 2fr) 3fr; height: calc(100vh - 3rem - 14rem); }
-.list { display: flex; flex-direction: column; border-right: 1px solid var(--line); overflow: hidden; }
+main { display: grid; grid-template-columns: var(--list) 5px 1fr; height: calc(100vh - 3rem - var(--log) - 5px); }
+.divider-x, .divider-y { background: var(--line); }
+.divider-x { cursor: col-resize; }
+.divider-y { height: 5px; cursor: row-resize; }
+.divider-x:hover, .divider-y:hover { background: #0969da; }
+body.dragging-x { cursor: col-resize; user-select: none; }
+body.dragging-y { cursor: row-resize; user-select: none; }
+.list { display: flex; flex-direction: column; overflow: hidden; }
 .filters { display: flex; gap: .5rem; padding: .6rem; border-bottom: 1px solid var(--line); }
 .list ul { flex: 1; list-style: none; margin: 0; padding: 0; overflow: auto; }
 .list li { display: flex; align-items: baseline; gap: .4rem; padding: .45rem .7rem; border-bottom: 1px solid var(--line); cursor: pointer; }
@@ -46,7 +52,7 @@ button:hover:not(:disabled) { background: #eaeef2; }
 button:disabled { opacity: .5; cursor: default; }
 .error { color: var(--red); }
 
-.log { height: 14rem; overflow: auto; border-top: 1px solid var(--line); background: var(--soft); padding: 0 1rem; font-size: .8rem; }
+.log { height: var(--log); box-sizing: border-box; overflow: auto; background: var(--soft); padding: 0 1rem; font-size: .8rem; }
 .log h3 { margin: .5rem 0; font-family: system-ui, sans-serif; font-size: .9rem; }
 .log small { font-weight: normal; color: var(--muted); }
 .entry { cursor: pointer; border-bottom: 1px solid var(--line); }
