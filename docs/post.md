@@ -2,15 +2,15 @@
 
 By: stefan@dyalog.com
 
-My aim today is to build a fairly complete, reasonably scalable, (but ultimately still a toy) webservice where Dyalog APL's Jarvis functions as the application server holding the business logic. I want to demonstrate an architecture pattern, rather than the code itself in detail so that you could get started with exposing your particular business data via an API. The application we walk through below should be runnable; you can check out the final state in its GitHub repository on [Dyalog Labs](https://github.com/dyalog-labs). 
+My aim today is to build a fairly complete, reasonably scalable, (but ultimately still a toy) webservice where Dyalog APL's Jarvis functions as the application server holding the business logic. I want to demonstrate an architecture pattern, rather than the code itself in detail so that you could get started with exposing your particular business data via an API. The application we walk through below should be runnable; you can check out the final state in its GitHub repository on [Dyalog Labs](https://github.com/dyalog-labs). TBD!
 
-The title talks about "building from standard parts" -- what does that mean? As APLers, traditionally, many of us choose to live in the session, and build every aspect of our systems in APL. This approach has served us well, and the advantage is that an APLer then can retain a good working knowledge of every part of their system. The disadvantage is that we forego the investment and development that has gone into non-APL system building blocks, and that we risk re-inventing the wheel, or solving problems that has already been solved in other contexts. 
+The title talks about "building from standard parts" -- what does that even mean? As APLers, traditionally, many of us choose to "live in the session", and build every aspect of our systems in APL. This approach has served us well, and the advantage is that an APLer then can retain a good working knowledge of every part of their system. The disadvantage is that we forego the investment and development that has gone into non-APL system building blocks, and that we risk re-inventing the wheel, or solving problems that has already been solved in other contexts. 
 
-Service oriented systems today are often built from standard building blocks, a bit like lego bricks. Grab an off-the-shelf database, a load balancer, perhaps a message queue, a firewall, run it in containers using an established orchestrator, drive it all from git etc. Systems built this way are said to be _composable_ -- we add more scaling axes. An orchestrator framework like [Kubernetes](https://kubernetes.io/) or the one we'll be using today, [Docker Compose](https://docs.docker.com/compose/), makes it trivial to add or remove capacity as the need changes. 
+Service oriented systems today are often built from standard building blocks, a bit like lego bricks. Grab an off-the-shelf database, a load balancer, perhaps a message queue, distributed search, a firewall, run it in containers using an established orchestrator, drive it all from git etc. Systems built this way are said to be _composable_ -- we add more scaling axes. An orchestrator framework like [Kubernetes](https://kubernetes.io/) or the one we'll be using today, [Docker Compose](https://docs.docker.com/compose/), makes it trivial to add or remove capacity as the need changes. 
 
 Of course, you can always write all of this in Dyalog APL; the tools are there. However, the "lego bricks" approach lets you focus on what you know best: your own business logic. You don't have to spend time figuring out the best way to load balance Jarvis processes across multiple machines, or how to ensure you have no concurrency data races accessing your data. 
 
-We're going to build our application using Docker Compose as our orchestration framework, [nginx](https://nginx.org/) as our reverse proxy/load balancer, [postgresql](https://www.postgresql.org/) as our data layer and [Jarvis](https://dyalog.github.io/Jarvis/) + [Stark](https://dyalog-labs.github.io/stark/) as our application server. We'll then show how you can build a simple UI in the [Vue](https://vuejs.org/) javascript framework to interact with our service. 
+We're going to build our application using Docker Compose as our orchestration framework, [nginx](https://nginx.org/) as our reverse proxy/load balancer, [postgresql](https://www.postgresql.org/) as our data layer and [Jarvis](https://dyalog.github.io/Jarvis/) + [Stark](https://dyalog-labs.github.io/stark/) as our application server. We'll then show how you can build a simple UI in the [Vue](https://vuejs.org/) JavaScript framework to interact with our service. 
 
 ## Pre-requisites
 
@@ -131,6 +131,23 @@ X-Worker: 172.18.0.3:8080
 X-Worker: 172.18.0.5:8080
 X-Worker: 172.18.0.4:8080
 X-Worker: 172.18.0.3:8080
+```
+
+**The same from APL, with HttpCommand**
+
+Nothing about the API is specific to `curl`. Here is the "list with filters" request again, this time from a Dyalog APL session using [HttpCommand](https://dyalog.github.io/HttpCommand/). `GetJSON` sends the request and parses the JSON response into namespaces. For a `GET`, the namespace of parameters becomes the query string:
+
+```apl
+      ]load HttpCommand
+#.HttpCommand
+      r←HttpCommand.GetJSON 'GET' 'localhost:8080/issues' (state:'open' ⋄ labels:'HIGH')
+      r
+[rc: 0 | msg:  | HTTP Status: 200 "OK" | ≢Data: 3]
+      ↑r.Data.(number title)
+      r.Data[1].labels.name
+ bug  HIGH
+      r.GetHeader 'X-Worker'
+172.18.0.5:8080
 ```
 
 ## System Architecture
@@ -313,8 +330,6 @@ The whole system so far involves no code, only configuration of our three "lego 
 
 > **Note**: Dyalog is free for non-commercial use but not free software, so check the [licence](https://www.dyalog.com/uploads/documents/Developer_Software_Licence.pdf) before building an image. We build images locally and don't publish them; the repository contains no Dyalog software, only the recipe for fetching it.
 
-
-
 ## Stateless workers
 
 One of the key ideas here is that the APL workers are completely stateless. Any worker can answer any request. All state is the responsibility of the database layer. This means that we need not think about threading or locking sections to protect against concurrent updates; this is postgresql's job, and it's very good at it. 
@@ -397,6 +412,8 @@ It's worth stressing that the description and the routing are the same piece of 
 
 Stark publishes the description but doesn't enforce it, so nothing stops a schema from disagreeing with what an endpoint really returns. In the test suite we fetch `/openapi.json` and check real responses against it.
 
+If you've built REST-style APIs with Jarvis before, do investigate Stark -- it takes away almost all busywork you'd normally do. Stark follows the patterns of many other API authoring frameworks, so if you've previously come across something like [FastAPI](https://fastapi.tiangolo.com/) you'll feel at home. 
+
 ### The handlers
 
 A handler takes the request and returns the response body. Here is the one behind `GET /issues/{number}`:
@@ -468,7 +485,7 @@ The architecture:
   - [Vue.js](https://vuejs.org/) without a build step: an import map, four files, no `npm`.
   - The request log panel is a teaching device, showing each REST call and the JSON going in both directions.
 
-The LLM point: building a competent web UI in JavaScript has become cheap. The APL developer's strength is in the domain and the API, so let the UI live where the tooling, the documentation and the LLM support are strongest. The web UI client came together without much ceremony. I opined a couple of times on architecture and visuals, but otherwise it was basically auto-generated. 
+The LLM point: building a competent web UI in JavaScript has become cheap. The APL developer's strength is in the domain and the API, so let the UI live where the tooling, the documentation and the LLM support are strongest. The web UI client came together without much ceremony. I opined a couple of times on architecture and visuals, but otherwise it was basically auto-generated. I wrote no JavaScript, HTML or CSS.
 
 Here are some screenshots of what it looks like, with our data set being imported issues from the Link repository.
 
@@ -480,7 +497,52 @@ The next screen hows #14 "Support multiple items in a single source file" open, 
 
 The console is a separate client that runs entirely in the browser and knows the service only through its public REST API. All network traffic goes through a single function, `call(method, path, body)` in `api.js`, which wraps fetch, turns API errors into exceptions that carry GitHub's message and field errors, and records every request and response in a capped, reactive log. That log is what the request panel displays, so the console doubles as a window onto the API. The UI is four small components (issue list, issue view, issue form, request log) coordinated by one shared reactive store. The store holds which issue is open, whether a new one is being written, the label filter, and a change counter that the list watches so it reloads after any edit. Every piece of state the console shows is fetched from the API, and nothing is kept locally, so the page always reflects the service and any other client could do the same job.
 
-The console is part of the stack, so it starts and stops with everything else: no separate step. Once the stack is up:
+Here is the heart of `call()`, trimmed of the bookkeeping for the request log. It's the browser's own `fetch`, sending and receiving JSON, the same exchange `curl` had with the API earlier:
+
+```js
+const API = `${location.protocol}//${location.hostname}:8080`
+
+export async function call(method, path, body) {
+  const res = await fetch(API + path, {
+    method,
+    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const text = await res.text()
+  const data = text ? JSON.parse(text) : null
+  if (!res.ok) throw Object.assign(new Error(data?.message ?? res.statusText), { data })
+  return data
+}
+```
+
+And here is how the issue view uses it, from `app.js`. Loading an issue is two GETs; closing one, or adding a comment, is one call followed by a reload:
+
+```js
+async function load() {
+  issue.value = await call('GET', `/issues/${store.selected}`)
+  comments.value = await call('GET', `/issues/${store.selected}/comments?per_page=100`)
+}
+
+const setState = state => change(() => call('PATCH', `/issues/${issue.value.number}`, { state }))
+
+async function addComment() {
+  if (await change(() => call('POST', `/issues/${issue.value.number}/comments`, { body: comment.value })))
+    comment.value = ''
+}
+```
+
+The template wires those to the page:
+
+```html
+<button v-if="issue.state === 'open'" @click="setState('closed')">Close</button>
+<button v-else @click="setState('open')">Reopen</button>
+```
+
+Clicking `Close` sends `PATCH /issues/14` with `{"state":"closed"}`, exactly the request we made with `curl`. The response, with `closed_at` and `state_reason` filled in by the database, is what the page shows next. Nothing in the console knows or cares that the other end is APL.
+
+The beauty of an "API first" approach is that there is nothing special about the console webapp. It has no privileged access, nothing provided to it from the server end (well, save a few static files). It simply talks to the same API like `curl` or `HttpCommand` would do.
+
+The console app is part of the stack, so it starts and stops with everything else: no separate step. Once the stack is up:
 
 ```sh
 docker compose up -d --build --scale worker=3 --wait
@@ -490,6 +552,10 @@ open http://localhost:3000 in a browser. It opens on the newest open issue. Clic
 
 ## Final thoughts
 
-Most "cloud first", API-centric applications today will be built in a similar fashion, at least conceptually. The building blocks may be different, but the overall shape will be similar. Once you know how to connect such building blocks, all applications start to look the same, with the business logic narrowly contained, and everything else fairly boiler-plate. Note that the stack itself doesn't care what language your application's business logic is expressed in. 
+Most "cloud first", API-centric applications today will be built in a similar fashion, at least conceptually. The building blocks may be different, but the overall shape will be similar. Once you know how to connect such building blocks, all applications start to look the same, with the business logic narrowly contained, and everything else fairly boiler-plate configuration, not code. 
 
-It does, however, mean that us APLers will need to learn a few new tricks, some of which may seem daunting at first blush, like container orchestration, load balancers etc. Also, the application I've shown here is missing a lot of pieces you would need in a proper production setting, like authentication, rollbacks, backups, logging etc. The database is completely unsecured. 
+Note that the stack itself doesn't care what language your application's business logic is expressed in -- this application would be largely unchanged if we swapped out the APL `worker` for the equivalent Python code.
+
+Another aspect is that container orchestration is the bread and butter of corporate devops teams. They will appreciate (or sometimes demand) that applications that run on their infrastructure are packaged this way.
+
+It does, however, mean that us APLers will need to learn a few new tricks, some of which may seem daunting at first blush, like understanding container orchestration, load balancers etc. Also, the application I've shown here is missing a lot of pieces you would need in a proper production setting, like authentication, rollbacks, backups, logging etc. The database is completely unsecured. 
