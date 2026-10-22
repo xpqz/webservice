@@ -12,6 +12,10 @@
     NullTime←(type: 'string' ⋄ format: 'date-time' ⋄ nullable: ⊂'true')
     Names←(type: 'array' ⋄ items: Text)
 
+    ⍝ Text the API accepts: GitHub's length limit, and BMP characters only
+    In←(type: 'string' ⋄ maxLength: 65536 ⋄ description: 'At most 65536 characters, none outside Unicode''s Basic Multilingual Plane')
+    NullIn←(type: 'string' ⋄ nullable: ⊂'true' ⋄ maxLength: 65536 ⋄ description: 'At most 65536 characters, none outside Unicode''s Basic Multilingual Plane; null or "" leaves it unset')
+
     Label←(
         type: 'object'
         properties: (
@@ -66,20 +70,20 @@
     NewIssue←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
         type: 'object'
         required: ('title' ⋄)
-        properties: (title: Text ⋄ body: Text ⋄ labels: Names)
+        properties: (title: In ⋄ body: NullIn ⋄ labels: Names)
     ))))
     IssueChange←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
         type: 'object'
-        properties: (title: Text ⋄ body: Text ⋄ state: (Issue.properties.state) ⋄ state_reason: (Issue.properties.state_reason) ⋄ labels: Names)
+        properties: (title: NullIn ⋄ body: NullIn ⋄ state: (type: 'string' ⋄ nullable: ⊂'true' ⋄ enum: 'open' 'closed') ⋄ state_reason: (Issue.properties.state_reason) ⋄ labels: Names)
     ))))
     NewLabel←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
         type: 'object'
         required: ('name' ⋄)
-        properties: (name: Text ⋄ color: Text ⋄ description: Text)
+        properties: (name: In ⋄ color: NullIn ⋄ description: NullIn)
     ))))
     LabelChange←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
         type: 'object'
-        properties: (new_name: Text ⋄ color: Text ⋄ description: Text)
+        properties: (new_name: NullIn ⋄ color: NullIn ⋄ description: NullIn)
     ))))
     LabelNames←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
         type: 'object'
@@ -89,7 +93,7 @@
     NewComment←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
         type: 'object'
         required: ('body' ⋄)
-        properties: (body: Text)
+        properties: (body: In)
     ))))
 
 ⍝ ── Parameters ──────────────────────────────────────────────────────────

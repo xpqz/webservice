@@ -314,6 +314,11 @@ test_openapi_metadata() {
     expect_eq "create issue responses" "$(jq -c '.paths["/issues"].post.responses | keys' <<<"$spec")" '["201","422"]'
     expect_eq "create issue body requires title" "$(jq -c '.paths["/issues"].post.requestBody.content["application/json"].schema.required' <<<"$spec")" '["title"]'
     expect_eq "delete label answers 204" "$(jq -c '.paths["/labels/{name}"].delete.responses | keys' <<<"$spec")" '["204","404"]'
+    local body='.paths["/issues"].post.requestBody.content["application/json"].schema.properties'
+    expect_eq "request body field may be null" "$(jq "$body.body.nullable" <<<"$spec")" true
+    expect_eq "request title may not be null" "$(jq "$body.title.nullable // false" <<<"$spec")" false
+    expect_eq "request text has GitHub's length limit" "$(jq "$body.body.maxLength" <<<"$spec")" 65536
+    expect_eq "label colour may be null" "$(jq '.paths["/labels"].post.requestBody.content["application/json"].schema.properties.color.nullable' <<<"$spec")" true
 }
 
 test_responses_match_spec() {

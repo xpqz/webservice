@@ -126,7 +126,7 @@ HTTP 404
 
 Four requests in a row, answered by three different workers.
 ```sh
-for i in 1 2 3 4; do curl -sI localhost:8080/health | grep -i '^x-worker'; done
+for i in 1 2 3 4; do curl -s -o /dev/null -D - localhost:8080/health | grep -i '^x-worker'; done
 X-Worker: 172.18.0.3:8080
 X-Worker: 172.18.0.5:8080
 X-Worker: 172.18.0.4:8080
@@ -156,7 +156,7 @@ Here is the system architecture diagram:
 
 ![The pattern: client → nginx → N identical APL workers → database](figures/pattern.svg)
 
-Of this stack, only about 200 lines are APL; everything else is configuration of hardened components that thousands of teams already run.
+Of this stack, only about 180 lines are APL code, plus about 110 lines of APLAN that describe the API; everything else is configuration of hardened components that thousands of teams already run.
 
 ### nginx
   - Single "front door".
@@ -324,7 +324,7 @@ Read from the top, it does four things:
 
 When a worker starts, compose runs `dyalogscript /worker/app/Run.apls`, which loads Jarvis, Stark and our code and starts the server.
 
-Two things are worth noting. First, Dyalog arrives like any other dependency: a pinned version of a package, installed by the system's package manager. Nothing is installed by hand, and anyone can rebuild an identical image from the file. Second, the application code is copied into the image rather than mounted from your disk, so every worker is self-contained. After changing the APL source you rebuild with `--build`.
+Two things are worth noting. First, Dyalog arrives like any other dependency: a pinned version of a package, installed by the system's package manager. Nothing is installed by hand, and anyone can rebuild the image from the file. (The Debian base image and its packages do receive updates, so two builds months apart won't be byte-for-byte identical; pin the base image by digest if that matters to you.) Second, the application code is copied into the image rather than mounted from your disk, so every worker is self-contained. After changing the APL source you rebuild with `--build`.
 
 The whole system so far involves no code, only configuration of our three "lego bricks": Docker Compose, nginx and Docker itself. Three short "recipes" define our infrastructure.
 

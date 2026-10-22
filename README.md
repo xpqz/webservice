@@ -4,7 +4,7 @@ A small clone of [GitHub's Issues REST API](https://docs.github.com/en/rest/issu
 
 ![client → nginx → N identical APL workers → database](docs/figures/pattern.svg)
 
-Most of the stack is standard parts: the official `postgres` and `nginx` images, Docker Compose, unixODBC and the Postgres ODBC driver. The APL part, in `worker/app/`, is a few hundred lines on [Jarvis](https://dyalog.github.io/Jarvis/) and [Stark](https://dyalog-labs.github.io/stark/). It turns HTTP requests into SQL and hands back the JSON documents Postgres builds.
+Most of the stack is standard parts: the official `postgres` and `nginx` images, Docker Compose, unixODBC and the Postgres ODBC driver. The APL part, in `worker/app/`, is about 180 lines of code plus 110 lines of APLAN describing the API, on [Jarvis](https://dyalog.github.io/Jarvis/) and [Stark](https://dyalog-labs.github.io/stark/). It turns HTTP requests into SQL and hands back the JSON documents Postgres builds.
 
 The accompanying blog post is in [`docs/post.md`](docs/post.md).
 
@@ -60,7 +60,7 @@ curl -s -X POST localhost:8080/issues -H 'Content-Type: application/json' \
      -d '{"title":"⍳ fails on an empty argument","labels":["bug"]}'
 curl -s -X PATCH localhost:8080/issues/41 -H 'Content-Type: application/json' -d '{"state":"closed"}'
 curl -s 'localhost:8080/issues?state=all&labels=bug&sort=updated'
-for i in 1 2 3; do curl -sI localhost:8080/health | grep -i x-worker; done
+for i in 1 2 3; do curl -s -o /dev/null -D - localhost:8080/health | grep -i x-worker; done
 ```
 
 (Issue 41 is the next number after the demo data.) Raw responses show non-ASCII characters as JSON escapes (`⍳` is `⍳`); pipe through `jq` to see them.

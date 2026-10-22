@@ -22,11 +22,16 @@ const IssueList = {
     const filter = reactive({ state: 'open', page: 1 })
     const issues = ref([]), labels = ref([]), error = ref('')
 
+    // Responses can arrive out of order; only the latest request may update the list
+    let latest = 0
     async function load() {
       const query = new URLSearchParams({ state: filter.state, page: filter.page, per_page: PER_PAGE })
       if (store.label) query.set('labels', store.label)
-      try { issues.value = await call('GET', `/issues?${query}`); error.value = '' }
-      catch (e) { error.value = describe(e) }
+      const mine = ++latest
+      try {
+        const result = await call('GET', `/issues?${query}`)
+        if (mine === latest) { issues.value = result; error.value = '' }
+      } catch (e) { if (mine === latest) error.value = describe(e) }
     }
 
     onMounted(async () => {
@@ -101,12 +106,17 @@ const IssueView = {
   setup() {
     const issue = ref(null), comments = ref([]), comment = ref(''), error = ref(''), editing = ref(false)
 
+    // Fetch the issue that is selected now; drop the results if the selection moves on meanwhile
     async function load() {
+      const number = store.selected
       try {
-        issue.value = await call('GET', `/issues/${store.selected}`)
-        comments.value = await call('GET', `/issues/${store.selected}/comments?per_page=100`)
-        error.value = ''
-      } catch (e) { error.value = describe(e) }
+        const [i, c] = await Promise.all([
+          call('GET', `/issues/${number}`),
+          call('GET', `/issues/${number}/comments?per_page=100`),
+        ])
+        if (number !== store.selected) return
+        issue.value = i; comments.value = c; error.value = ''
+      } catch (e) { if (number === store.selected) error.value = describe(e) }
     }
 
     // Run a change, then refresh this issue and the list
