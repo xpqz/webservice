@@ -6,7 +6,7 @@ My aim today is to build a fairly complete, reasonably scalable, (but ultimately
 
 The title talks about "building from standard parts" -- what does that even mean? As APLers, traditionally, many of us choose to "live in the session", and build every aspect of our systems in APL. This approach has served us well, and the advantage is that an APLer then can retain a good working knowledge of every part of their system. The disadvantage is that we forego the investment and development that has gone into non-APL system building blocks, and that we risk re-inventing the wheel, or solving problems that has already been solved in other contexts. 
 
-Service oriented systems today are often built from standard building blocks, a bit like lego bricks. Grab an off-the-shelf database, a load balancer, perhaps a message queue, distributed search, a firewall, run it in containers using an established orchestrator, drive it all from git etc. Systems built this way are said to be _composable_ -- we add more scaling axes. An orchestrator framework like [Kubernetes](https://kubernetes.io/) or the one we'll be using today, [Docker Compose](https://docs.docker.com/compose/), makes it trivial to add or remove capacity as the need changes. 
+Service oriented systems today are often built from standard building blocks, a bit like lego bricks. Grab an off-the-shelf database, a load balancer, perhaps a message queue, distributed search, a firewall, run it in containers using an established orchestrator, drive it all from git etc. Systems built this way are said to be _composable_ -- we add more scaling axes. An orchestrator lets you add or remove capacity as the need changes. The one we'll use today, [Docker Compose](https://docs.docker.com/compose/), runs everything on a single machine: scaling there means starting more processes on that host. Spreading the same containers across several machines, and surviving the loss of one, is what orchestrators like [Kubernetes](https://kubernetes.io/) are for; the containers we build here would move there unchanged. 
 
 Of course, you can always write all of this in Dyalog APL; the tools are there. However, the "lego bricks" approach lets you focus on what you know best: your own business logic. You don't have to spend time figuring out the best way to load balance Jarvis processes across multiple machines, or how to ensure you have no concurrency data races accessing your data. 
 
@@ -30,85 +30,101 @@ If you're coding along, you may want to install those if they didn't come with y
 
 We're going to implement a subset of GitHub's issues API. If you're unfamiliar with the issues system, you can think of it as a ticketing system for bugs, feature requests, tasks etc. An issue can be labelled, commented on, opened, closed, edited etc. This API is REST-based, and can be interacted with directly over HTTP, or via the `gh` command line utility. Why did we choose this? Well, for our purposes it's convenient to be able to target an existing API, rather than spending time presenting -- and inventing -- something new. It's also small and self-contained. Note that we won't be targetting GitHub itself: we'll have our own data store. We'll also skip or gloss over many hard parts that would balloon the scope of this blog post. For example, our application will be running unauthenticated and open; not what you want for a real application. 
 
-Here are seven example API interactions covering creating, reading, updating, listing and show two error types. I ran them against the live stack, and the outputs are real. Pretty-printed output is passed through `jq`, which is a json data processor.
+### Getting it running
+
+To follow along, you need Docker with Compose, plus curl and jq. Clone the repository, start the stack with three workers, and load the demo data, a snapshot of 40 real issues from Dyalog's [Link](https://github.com/Dyalog/link) project:
+
+```sh
+git clone https://github.com/xpqz/webservice.git
+cd webservice
+docker compose up -d --build --scale worker=3 --wait
+db/seed/load.sh
+```
+
+The first build downloads Dyalog and takes a few minutes. `--wait` returns once everything reports healthy. The examples below assume exactly this starting point: the demo data and nothing else, so the first new issue gets number 41. To get back to it later, run `docker compose down -v` (which deletes the data), then the last two commands again.
+
+### Trying the API
+
+Here are seven interactions covering creating, reading, updating and listing, and two kinds of error. The outputs are real; the pretty-printed ones are passed through `jq`.
 
 **Create a label**
 ```sh
 curl -s -X POST localhost:8080/labels \
      -H 'Content-Type: application/json' \
-     -d '{"name":"bug","color":"d73a4a"}'
+     -d '{"name":"performance","color":"5319e7"}'
 ```
 ```json
-{"color":"d73a4a","description":null,"id":102,"name":"bug"}
+{"color":"5319e7","description":null,"id":8,"name":"performance"}
 ```
 
-**Create an issue that uses it** 
+**Create an issue that uses it**
 
-The status is 201, and the response is the whole issue as Postgres built it.
+The status is 201, and the response is the whole issue as the service stored it.
 ```sh
 curl -s -X POST localhost:8080/issues \
      -H 'Content-Type: application/json' \
-     -d '{"title":"⍳ fails on an empty argument","body":"Reproduced with ⍳0","labels":["bug"]}' | jq .
+     -d '{"title":"⍸ is slow on long Boolean vectors","body":"Takes 2 s on 1E8 elements","labels":["performance"]}' | jq .
 ```
 ```json
 {
-  "body": "Reproduced with ⍳0",
+  "body": "Takes 2 s on 1E8 elements",
   "closed_at": null,
   "comments": 0,
-  "created_at": "2026-10-21T11:15:46Z",
+  "created_at": "2026-10-22T11:47:38Z",
   "labels": [
-    { "color": "d73a4a", "description": null, "id": 102, "name": "bug" }
+    { "color": "5319e7", "description": null, "id": 8, "name": "performance" }
   ],
-  "number": 256,
+  "number": 41,
   "state": "open",
   "state_reason": null,
-  "title": "⍳ fails on an empty argument",
-  "updated_at": "2026-10-21T11:15:46Z"
+  "title": "⍸ is slow on long Boolean vectors",
+  "updated_at": "2026-10-22T11:47:38Z"
 }
 ```
 
-**Read it back, showing the http headers** 
+**Read it back, showing the HTTP headers**
 
 `X-Worker` says which worker answered.
-
 ```sh
-curl -si localhost:8080/issues/256 | grep -iE '^(HTTP|content-type|x-worker)'
+curl -si localhost:8080/issues/41 | grep -iE '^(HTTP|content-type|x-worker)'
+```
+```
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8
 X-Worker: 172.18.0.5:8080
 ```
 
 **Close it**
-The client sends only the state; the database fills in the reason and the time.
+
+The client sends only the state; the service fills in the reason and the time.
 ```sh
-curl -s -X PATCH localhost:8080/issues/256 \
+curl -s -X PATCH localhost:8080/issues/41 \
      -H 'Content-Type: application/json' \
      -d '{"state":"closed"}' | jq '{number, state, state_reason, closed_at}'
 ```
 ```json
 {
-  "number": 256,
+  "number": 41,
   "state": "closed",
   "state_reason": "completed",
-  "closed_at": "2026-10-21T11:15:46Z"
+  "closed_at": "2026-10-22T11:47:38Z"
 }
 ```
 
 **List with filters, using GitHub's query parameters**
 ```sh
-curl -s 'localhost:8080/issues?state=closed&labels=bug' | jq '[.[] | {number, title, state}]'
+curl -s 'localhost:8080/issues?state=closed&labels=performance' | jq '[.[] | {number, title, state}]'
 ```
 ```json
-[ { "number": 256, "title": "⍳ fails on an empty argument", "state": "closed" } ]
+[ { "number": 41, "title": "⍸ is slow on long Boolean vectors", "state": "closed" } ]
 ```
 
 **A validation error, in GitHub's error format**
-
 ```sh
 curl -s -w '\nHTTP %{http_code}\n' -X POST localhost:8080/issues \
      -H 'Content-Type: application/json' -d '{"body":"no title"}'
 ```
-```json
+```
 {"errors":[{"code":"missing_field","field":"title","resource":"Issue"}],"message":"Validation Failed"}
 HTTP 422
 ```
@@ -117,20 +133,22 @@ HTTP 422
 ```sh
 curl -s -w '\nHTTP %{http_code}\n' localhost:8080/issues/99999
 ```
-```json
+```
 {"message":"Not Found"}
 HTTP 404
 ```
 
-**Bonus, the load balancing in action** 
+**Bonus: the load balancing in action**
 
 Four requests in a row, answered by three different workers.
 ```sh
 for i in 1 2 3 4; do curl -s -o /dev/null -D - localhost:8080/health | grep -i '^x-worker'; done
-X-Worker: 172.18.0.3:8080
+```
+```
 X-Worker: 172.18.0.5:8080
 X-Worker: 172.18.0.4:8080
-X-Worker: 172.18.0.3:8080
+X-Worker: 172.18.0.6:8080
+X-Worker: 172.18.0.5:8080
 ```
 
 **The same from APL, with HttpCommand**
@@ -336,7 +354,7 @@ One of the key ideas here is that the APL workers are completely stateless. Any 
 
 In some respects, this cuts against APL habits (a long-lived workspace accumulating state), but for an application like this, it makes everything easier to reason about, and to scale. The one job of our APL layer is to take the incoming request, convert it to a SQL query, send this query to the database, and return the results. Done. 
 
-The database layer provides another scalability dimension to a system like this. We're running a single postgresql note, but it has built-in clustering facilities, support for split reads and writes etc. Scaling the database layer is out of scope for this article, but if you expect thousands of requests per second, our setup is insufficient. In such cases you will want to protect your database with a cache or message queue between it and incoming requests. 
+The database layer provides another scalability dimension to a system like this. We're running a single postgresql note, but it has built-in clustering facilities, support for split reads and writes etc. How much load a single database can take depends on the queries and the hardware, so it has to be measured rather than guessed. Replication, routing reads to replicas, and scaling writes are each design decisions with their own trade-offs (PostgreSQL's [overview](https://www.postgresql.org/docs/17/high-availability.html) is a good start), and they are outside the scope of this example. 
 
 ## The APL layer
 
@@ -470,6 +488,37 @@ which produces exactly the body GitHub would send:
 ```
 
 Every handler in the service follows this recipe: check the input, ask the database with bound values, return what it gives back. That's also where your own application would differ. Your checks, your SQL, your rules go in these functions; everything around them stays the same.
+
+### Where the rules live
+
+You may have noticed that the handlers don't contain much business logic. In this example, a fair share of it lives in the database. Take closing an issue. GitHub's rules say that closing sets `closed_at` and, unless a reason is given, a `state_reason` of `completed`; reopening clears `closed_at` and sets the reason to `reopened`. The handler for `PATCH /issues/{number}` checks only that the values are allowed words, then makes a single call:
+
+```apl
+:If ~(⊂state)∊'' 'open' 'closed' ⋄ r←'Issue'Invalid req'state' 'invalid' ⋄ →0 ⋄ :EndIf
+...
+:Select ⊃⊃#.Db.Do('SELECT update_issue(',I,', ',T,', ',T,', ',T,', ',T,', ',J,')')n(p Text'title')(p Text'body')state reason labels
+:Case 0 ⋄ r←NotFound req ⋄ →0
+:Case ¯1 ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0
+:EndSelect
+```
+
+The rules themselves are a trigger, which Postgres runs on every update of an issue, whoever makes it:
+
+```sql
+IF NEW.state = 'closed' AND OLD.state = 'open' THEN
+    NEW.closed_at := now();
+    IF NEW.state_reason IS NULL OR NEW.state_reason = 'reopened' THEN
+        NEW.state_reason := 'completed';
+    END IF;
+ELSIF NEW.state = 'open' AND OLD.state = 'closed' THEN
+    NEW.closed_at := NULL;
+    NEW.state_reason := 'reopened';
+END IF;
+```
+
+Likewise, the JSON documents the API returns are built by database views, and the list endpoints are database functions that filter, sort and page in one query.
+
+This is a choice, not a requirement of the pattern. I put the rules next to the data because that kept the APL short and made every write a single call, and so a single transaction. The same rules could equally live in the APL handlers, with the database reduced to plain tables. What the pattern does require is that each request's changes reach the database as one transaction, wherever the rules are written. If your business logic already exists in APL, it belongs in these handlers, and the database's job shrinks to storing the results.
 
 ## A console
 
