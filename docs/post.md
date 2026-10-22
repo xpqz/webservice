@@ -332,7 +332,7 @@ The whole system so far involves no code, only configuration of our three "lego 
 
 ## Stateless workers
 
-One of the key ideas here is that the APL workers are completely stateless. Any worker can answer any request. All state is the responsibility of the database layer. This means that we need not think about threading or locking sections to protect against concurrent updates; this is postgresql's job, and it's very good at it. 
+One of the key ideas here is that the APL workers are completely stateless. Any worker can answer any request. All state is the responsibility of the database layer. This means that we need not think about threading or locking sections to protect against concurrent updates; this is postgresql's job, and it's very good at it. For that to hold, each request that writes does so in a single database call. Creating an issue together with its labels, for example, is one call to a database function, and so one transaction: it either happens completely or not at all, whatever other workers are doing at the same moment. 
 
 In some respects, this cuts against APL habits (a long-lived workspace accumulating state), but for an application like this, it makes everything easier to reason about, and to scale. The one job of our APL layer is to take the incoming request, convert it to a SQL query, send this query to the database, and return the results. Done. 
 

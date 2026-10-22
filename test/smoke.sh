@@ -343,6 +343,24 @@ test_responses_match_spec() {
 }
 
 
+test_writes_are_all_or_nothing() {
+    new_label "aon-$RUN"
+    req GET "/issues?state=all&per_page=100&labels=aon-$RUN"; local before; before=$(jqb length)
+    req POST /issues "{\"title\":\"aon $RUN\",\"labels\":[\"aon-$RUN\",\"missing-$RUN\"]}"
+    expect_eq "create with an unknown label refused" "$STATUS" 422
+    req GET "/issues?state=all&per_page=100&labels=aon-$RUN"
+    expect_eq "nothing created" "$(jqb length)" "$before"
+    new_issue "{\"title\":\"aon keep $RUN\"}"
+    req PATCH "/issues/$NUM" "{\"title\":\"changed\",\"labels\":[\"missing-$RUN\"]}"
+    expect_eq "update with an unknown label refused" "$STATUS" 422
+    req GET "/issues/$NUM"
+    expect_eq "title left unchanged" "$(jqb .title)" "aon keep $RUN"
+    req PATCH /issues/99999999 "{\"labels\":[\"missing-$RUN\"]}"
+    expect_eq "unknown issue is 404 before label checks" "$STATUS" 404
+    req POST /issues/99999999/labels "{\"labels\":[\"aon-$RUN\"]}"
+    expect_eq "add labels to unknown issue" "$STATUS" 404
+}
+
 # A JSON string of n characters
 long_text() { python3 -c "import sys; print('x'*int(sys.argv[1]))" "$1"; }
 

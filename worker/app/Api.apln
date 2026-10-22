@@ -6,6 +6,7 @@
     ⍝ Bind variable markers: text is wide (Unicode), numbers are integers
     T←':<C100000(Q):'
     I←':<I:'
+    J←'CAST(NULLIF(:<C100000(Q):, '''') AS json)'   ⍝ a JSON array, or NULL when absent
 
     ∇ r←Health req
       {}#.Db.Do'SELECT 1'
@@ -76,9 +77,8 @@
       title←p Text'title'
       labels←p Json'labels'
       :If 0=≢title ⋄ r←'Issue'Invalid req'title' 'missing_field' ⋄ →0 ⋄ :EndIf
-      :If 0<UnknownLabels labels ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0 ⋄ :EndIf
-      n←⊃#.Db.Do('INSERT INTO issues (title, body) VALUES (',T,', NULLIF(',T,', '''')) RETURNING number')title(p Text'body')
-      SetLabels n labels'true'
+      n←⊃⊃#.Db.Do('SELECT create_issue(',T,', ',T,', ',J,')')title(p Text'body')labels
+      :If n=0 ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0 ⋄ :EndIf
       req.SetStatus 201
       r←Issue n
     ∇
@@ -91,11 +91,10 @@
       labels←p Json'labels'
       :If ~(⊂state)∊'' 'open' 'closed' ⋄ r←'Issue'Invalid req'state' 'invalid' ⋄ →0 ⋄ :EndIf
       :If ~(⊂reason)∊'' 'completed' 'not_planned' 'duplicate' 'reopened' ⋄ r←'Issue'Invalid req'state_reason' 'invalid' ⋄ →0 ⋄ :EndIf
-      :If 0<UnknownLabels labels ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0 ⋄ :EndIf
-      :If 0=⊃⊃#.Db.Do('SELECT update_issue(',I,', ',T,', ',T,', ',T,', ',T,')')n(p Text'title')(p Text'body')state reason
-          r←NotFound req ⋄ →0
-      :EndIf
-      SetLabels n labels'true'
+      :Select ⊃⊃#.Db.Do('SELECT update_issue(',I,', ',T,', ',T,', ',T,', ',T,', ',J,')')n(p Text'title')(p Text'body')state reason labels
+      :Case 0 ⋄ r←NotFound req ⋄ →0
+      :Case ¯1 ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0
+      :EndSelect
       r←Issue n
     ∇
 
@@ -107,10 +106,11 @@
     ∇ r←AddIssueLabels req;n;labels
       n←0 Number req.PathParams.number
       labels←req.Payload Json'labels'
-      :If ⍬≡Issue n ⋄ r←NotFound req ⋄ →0 ⋄ :EndIf
-      :If 0<UnknownLabels labels ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0 ⋄ :EndIf
-      SetLabels n labels'false'
-      r←(Issue n).labels
+      :Select ⊃⊃#.Db.Do('SELECT set_issue_labels(',I,', ',J,', false)')n labels
+      :Case ¯1 ⋄ r←NotFound req ⋄ →0
+      :CaseList 0 ⋄ r←(Issue n).labels
+      :Else ⋄ r←'Issue'Invalid req'labels' 'invalid'
+      :EndSelect
     ∇
 
     ∇ r←RemoveIssueLabel req;n
@@ -124,19 +124,6 @@
     ∇ r←Issue n
     ⍝ The issue's document, or ⍬ if there is no such issue
       r←#.Db.Doc('SELECT doc FROM issue_doc WHERE number = ',I)n
-    ∇
-
-    ∇ n←UnknownLabels labels
-    ⍝ How many of the label names (JSON text) don't exist
-      n←0
-      →0/⍨0=≢labels
-      n←⊃⊃#.Db.Do('SELECT set_issue_labels(NULL, CAST(',T,' AS json), false)')labels
-    ∇
-
-    ∇ SetLabels(n labels replace)
-    ⍝ replace is 'true' (labels become exactly these) or 'false' (add these)
-      →0/⍨0=≢labels
-      {}#.Db.Do('SELECT set_issue_labels(',I,', CAST(',T,' AS json), ',replace,')')n labels
     ∇
 
 ⍝ ── Comments ────────────────────────────────────────────────────────────
