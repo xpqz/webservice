@@ -1,21 +1,26 @@
 :Namespace Db
 ⍝ The only code that knows about SQAPL. Values always travel as bind
-⍝ variables; text is declared as wide long text, (Q), so Unicode survives.
+⍝ variables; text is declared as wide long text, (Q), and passed as UTF-16,
+⍝ so all of Unicode survives, including characters outside the BMP.
 
     ∇ Connect;Env;conn
       'SQA'⎕CY'sqapl'
       Env←{2 ⎕NQ'.' 'GetEnvironment' ⍵}
       {}SQA.Init''
       conn←'Driver={PostgreSQL Unicode};Server=',(Env'PGHOST'),';Port=',(Env'PGPORT'),';Database=',Env'PGDATABASE'
-      Check SQA.Connect'C1' ''(Env'PGPASSWORD')(Env'PGUSER')('DriverOptions'conn)('MaxRows' 1)
+      Check SQA.Connect'C1' ''(Env'PGPASSWORD')(Env'PGUSER')('DriverOptions'conn)('MaxRows' 1)('Unicode' 'UTF-16')
     ∇
 
     ∇ rows←Do args;r
     ⍝ args: 'SQL with :<C100000(Q): or :<I: markers' value1 value2 ...
       r←SQA.Do(⊂'C1'),⊆args
       Check r
-      rows←⊃3⊃r
+      rows←Unpad¨⊃3⊃r
     ∇
+
+    Unpad←{(0=10|⎕DR ⍵)∧1≥≢⍴⍵:⍵↓⍨-+/∧\⌽⍵=⎕UCS 0 ⋄ ⍵}
+    ⍝ SQAPL pads text results with one NUL per character outside the BMP;
+    ⍝ drop them (reported upstream)
 
     ∇ ns←Doc args;rows
     ⍝ For queries whose one column is a JSON document; ⍬ when no row

@@ -4,9 +4,9 @@
 ⍝ checks its input, runs SQL with bind variables, and hands the result back.
 
     ⍝ Bind variable markers: text is wide (Unicode), numbers are integers
-    T←':<C100000(Q):'
+    T←':<C140000(Q):'   ⍝ room for 65536 characters as UTF-16, surrogate pairs included
     I←':<I:'
-    J←'CAST(NULLIF(:<C100000(Q):, '''') AS json)'   ⍝ a JSON array, or NULL when absent
+    J←'CAST(NULLIF(:<C140000(Q):, '''') AS json)'   ⍝ a JSON array, or NULL when absent
 
     ∇ r←Health req
       {}#.Db.Do'SELECT 1'
@@ -148,8 +148,7 @@
 
     ∇ v←ns Text name
     ⍝ A text field from a JSON body or query string: '' when absent or null.
-    ⍝ A value that isn't text, is longer than GitHub allows, or has characters
-    ⍝ outside Unicode's BMP (SQAPL can crash on those) is a 422.
+    ⍝ A value that isn't text, or is longer than GitHub allows, is a 422.
       v←''
       →0/⍨9≠⎕NC'ns'
       →0/⍨0=⌊ns.⎕NC⊂name
@@ -157,7 +156,6 @@
       :If v≡⊂'null' ⋄ v←'' ⋄ →0 ⋄ :EndIf      ⍝ how Jarvis reads JSON null
       :If (1<≢⍴v)∨(0≠10|⎕DR v)∨65536<≢v ⋄ BadField name ⋄ :EndIf
       v←'',,v
-      :If ∨/65535<⎕UCS v ⋄ BadField name ⋄ :EndIf
     ∇
 
     ∇ j←ns Json name;v
@@ -167,7 +165,6 @@
       →0/⍨0=⌊ns.⎕NC⊂name
       v←ns⍎name
       :If ~(1=≢⍴v)∧(v≡⍬)∨(326=⎕DR v)∧∧/{(1=≢⍴⍵)∧0=10|⎕DR ⍵}¨v ⋄ BadField name ⋄ :EndIf
-      :If ∨/65535<⎕UCS∊v ⋄ BadField name ⋄ :EndIf
       j←1 ⎕JSON v
     ∇
 

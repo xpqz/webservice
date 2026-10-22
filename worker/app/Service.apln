@@ -12,9 +12,9 @@
     NullTime←(type: 'string' ⋄ format: 'date-time' ⋄ nullable: ⊂'true')
     Names←(type: 'array' ⋄ items: Text)
 
-    ⍝ Text the API accepts: GitHub's length limit, and BMP characters only
-    In←(type: 'string' ⋄ maxLength: 65536 ⋄ description: 'At most 65536 characters, none outside Unicode''s Basic Multilingual Plane')
-    NullIn←(type: 'string' ⋄ nullable: ⊂'true' ⋄ maxLength: 65536 ⋄ description: 'At most 65536 characters, none outside Unicode''s Basic Multilingual Plane; null or "" leaves it unset')
+    ⍝ Text the API accepts: up to GitHub's length limit
+    In←(type: 'string' ⋄ maxLength: 65536)
+    NullIn←(type: 'string' ⋄ nullable: ⊂'true' ⋄ maxLength: 65536 ⋄ description: 'null or "" leaves it unset')
 
     Label←(
         type: 'object'

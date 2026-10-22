@@ -109,7 +109,6 @@ test/ci.sh test_issue_create        # just some
 ## Known limitations
 
 - No authentication, no TLS, one repository.
-- Text with characters outside Unicode's Basic Multilingual Plane (emoji, styled letters) is refused with a 422; SQAPL can't pass it safely. APL glyphs and accented letters are fine.
 - A label whose name contains `/` can be created but not reached at `/labels/{name}`, because Jarvis decodes `%2F` before Stark matches the route.
 - An empty string in a PATCH means "leave unchanged", so a field can't be cleared.
 - While Postgres restarts, requests fail for a few seconds until every worker has reconnected.

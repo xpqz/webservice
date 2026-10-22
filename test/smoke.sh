@@ -366,6 +366,20 @@ test_writes_are_all_or_nothing() {
     expect_eq "add labels to unknown issue" "$STATUS" 404
 }
 
+test_non_bmp_round_trips() {
+    new_issue '{"title":"H𝗜𝗚𝗛 ⍳ café","body":"𝗛𝗛𝗛"}'
+    expect_eq "non-BMP title status" "$STATUS" 201
+    expect_eq "non-BMP title round-trips" "$(jqb .title)" "H𝗜𝗚𝗛 ⍳ café"
+    expect_eq "all-non-BMP body round-trips" "$(jqb .body)" "𝗛𝗛𝗛"
+    req GET "/issues/$NUM"
+    expect_eq "non-BMP title read back" "$(jqb .title)" "H𝗜𝗚𝗛 ⍳ café"
+    req POST /labels "{\"name\":\"𝗠𝗜𝗗-$RUN\"}"
+    expect_eq "non-BMP label created" "$STATUS" 201
+    expect_eq "non-BMP label name" "$(jqb .name)" "𝗠𝗜𝗗-$RUN"
+    req GET /health
+    expect_eq "workers still up" "$STATUS" 200
+}
+
 # A JSON string of n characters
 long_text() { python3 -c "import sys; print('x'*int(sys.argv[1]))" "$1"; }
 
