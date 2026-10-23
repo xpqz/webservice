@@ -2,7 +2,7 @@
 
 By: stefan@dyalog.com
 
-My aim today is to build a fairly complete, reasonably scalable, (but ultimately still a toy) webservice where Dyalog APL's Jarvis functions as the application server holding the main business logic. I want to demonstrate an architecture pattern, rather than the code itself in detail so that you could get started with exposing your particular business data via an API. The application we walk through below should be runnable; you can check out the final state in its GitHub repository, [xpqz/webservice](https://github.com/xpqz/webservice).
+My aim today is to build a fairly complete, reasonably scalable, (but ultimately still a toy) webservice where Dyalog APL's [Jarvis](https://dyalog.github.io/Jarvis/) functions as the application server holding the main business logic. I want to demonstrate an architecture pattern, rather than the code itself in detail so that you could get started with exposing your particular business data via an API. The application we walk through below should be runnable; you can check out the final state in its GitHub repository, [xpqz/webservice](https://github.com/xpqz/webservice).
 
 The title talks about "building from standard parts" -- what does that even mean? As APLers, traditionally, many of us choose to "live in the session", and build every aspect of our systems in APL. This approach has served us well, and the advantage is that an APLer then can retain a good working knowledge of every part of their system. The disadvantage is that we forego the investment and development that has gone into non-APL system building blocks, and that we risk re-inventing the wheel, or solving problems that has already been solved in other contexts. 
 
@@ -12,13 +12,13 @@ An orchestrator lets you add or remove capacity as the need changes. The one we'
 
 Of course, you can always write all of this in Dyalog APL; the tools are there. However, the "lego bricks" approach lets you focus on what _you_ know best: your own domain business logic. You don't have to spend time figuring out the best way to load balance Jarvis processes across multiple machines, or how to ensure you have no concurrency data races accessing your data. 
 
-We're going to build our application using Docker Compose as our orchestration framework, [nginx](https://nginx.org/) as our reverse proxy/load balancer, [postgresql](https://www.postgresql.org/) as our data layer and [Jarvis](https://dyalog.github.io/Jarvis/) + [Stark](https://dyalog-labs.github.io/stark/) as our application server. We'll then show how you can build a simple UI in the [Vue](https://vuejs.org/) JavaScript framework to interact with our service. 
+We're going to build our application using Docker Compose as our orchestration framework, [nginx](https://nginx.org/) as our reverse proxy/load balancer, [postgresql](https://www.postgresql.org/) as our data layer and [Jarvis](https://dyalog.github.io/Jarvis/) + [Stark](https://dyalog-labs.github.io/stark/) as our application server. I'll then show how you can build a simple UI in the [Vue](https://vuejs.org/) JavaScript framework to interact with our service. 
 
 ## Pre-requisites
 
-I will assume broad familiarity with HTTP and JSON and that you are somewhat comfortable typing commands into a terminal. I will also assume you know your way around Jarvis, and -- needless to say -- Dyalog APL.
+I will assume broad familiarity with [HTTP](https://en.wikipedia.org/wiki/HTTP) and [JSON](https://www.json.org/) and that you are somewhat comfortable typing commands into a terminal. I will also assume you know your way around Jarvis, and -- needless to say -- Dyalog APL.
 
-We're building this in Docker containers but won't go too deep on Docker beyond using it. I will be treating the database mostly as a black box, but if you are interested in its schema, you can examine that in the repository. If reading tiny bits of SQL doesn't put you off your breakfast, that helps, too.
+We're building this in Docker containers but won't go too deep on Docker beyond using it. I will be treating the database mostly as a black box, but if you are interested in its schema, you can examine that in the repository. If reading tiny bits of [SQL](https://en.wikipedia.org/wiki/SQL) doesn't put you off your breakfast, that helps, too.
 
 Inevitably, this touches tools and components that are uncommon in use in typical APL shops. I will try to introduce such briefly and suggest further reading. Two tools we'll be calling on occasionally are [curl](https://curl.se/) and [jq](https://jqlang.org/). `curl` is a command-line HTTP client; think of it as Dyalog's [HttpCommand](https://dyalog.github.io/HttpCommand/), but for the terminal. 
 
@@ -26,11 +26,11 @@ Inevitably, this touches tools and components that are uncommon in use in typica
 
 If you're coding along, you may want to install those if they didn't come with your system already. 
 
-> **Note**: if you're set up with Docker Desktop on Microsoft Windows, the stuff we're doing here "should just work". However, Docker on Windows already rely on WSL2, and you may just be better running in WSL2 directly. 
+> **Note**: if you're set up with [Docker Desktop on Microsoft Windows](https://docs.docker.com/desktop/setup/install/windows-install/), the stuff we're doing here "should just work". However, Docker on Windows already rely on [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install), and you may just be better running in WSL2 directly. 
 
 ## The application
 
-We're going to implement a subset of GitHub's issues API. If you're unfamiliar with the issues system, you can think of it as a ticketing system for bugs, feature requests, tasks etc. An issue can be labelled, commented on, opened, closed, edited etc. This API is REST-based, and can be interacted with directly over HTTP, or via the `gh` command line utility. 
+We're going to implement a subset of [GitHub's issues API](https://docs.github.com/en/rest/issues?apiVersion=2026-03-10). If you're unfamiliar with the issues system, you can think of it as a ticketing system for bugs, feature requests, tasks etc. An issue can be labelled, commented on, opened, closed, edited etc. This API is REST-based, and can be interacted with directly over HTTP, or via the [gh](https://cli.github.com/) command line utility. 
 
 Why did we choose this? Well, for our purposes it's convenient to be able to target an existing API, rather than spending time inventing something new from scratch. As an example, it's large enough to justify the pattern, yet small enough to understand at a glance. 
 
@@ -180,11 +180,13 @@ Nothing about the API is specific to `curl`. Here is the "list with filters" req
 
 If you're unfamiliar with Docker's terminology, here are some terms I'll be using in this post:
 
-- An **image** is a packaged, read-only filesystem plus a start command: the operating system's tools and libraries, the software installed on them, and our files. It is either built from a recipe (a `Dockerfile`) or downloaded ready-made (`postgres:17`, `nginx:1.29`).
-- A **container** is a running instance of an image: a process with its own private filesystem and network address. Stopping or restarting a container keeps what it wrote; removing it discards everything it wrote outside mounted storage, and a new one from the same image starts from the same clean state.
-- A **service** is a named entry in `compose.yaml`: which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
-- A **replica** is one of several containers running the same service. `--scale worker=3` starts three identical worker containers, and the name `worker` then resolves to all three addresses. That's what nginx balances across.
-- A **volume** is storage managed by Docker that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives container removal and recreation (`docker compose down -v` deletes it). We also use **bind mounts** to make files from the repository available inside containers, read-only: `nginx.conf`, `db/init` and `console/`. Both are set with the same `volumes:` key in `compose.yaml`.
+- An [**image**](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/) is a packaged, read-only filesystem plus a start command: the operating system's tools and libraries, the software installed on them, and our files. It is either built from a recipe (a [**Dockerfile**](https://docs.docker.com/reference/dockerfile/)) or downloaded ready-made (`postgres:17`, `nginx:1.29`).
+- A [**container**](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/) is a running instance of an image: a process with its own private filesystem and network address. Stopping or restarting a container keeps what it wrote; removing it discards everything it wrote outside mounted storage, and a new one from the same image starts from the same clean state.
+- A [**service**](https://docs.docker.com/reference/compose-file/services/) is a named entry in `compose.yaml`: which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
+- A [**replica**](https://docs.docker.com/reference/compose-file/deploy/#replicas) is one of several containers running the same service. `--scale worker=3` starts three identical worker containers, and the name `worker` then resolves to all three addresses. That's what nginx balances across.
+- A [**volume**](https://docs.docker.com/engine/storage/volumes/) is storage managed by Docker that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives container removal and recreation (`docker compose down -v` deletes it). We also use [**bind mounts**](https://docs.docker.com/engine/storage/bind-mounts/) to make files from the repository available inside containers, read-only: `nginx.conf`, `db/init` and `console/`. Both are set with the same `volumes:` key in `compose.yaml`.
+
+Docker has exceptional [documentation](https://docs.docker.com/). 
 
 ### How the pieces fit
 
@@ -242,7 +244,7 @@ The `upstream` block is the load balancer. It names a single server, `worker`, w
 
 The `server` block listens on port 80 inside its container; compose publishes that as port 8080 on your machine. Every request is passed on to the upstream, and two headers are added to each response. `X-Worker` carries the address of the worker that answered, which is how we watched the load balancing earlier. `Access-Control-Expose-Headers` lets JavaScript in a browser read that header, which we'll need for the console later.
 
-None of this involves our application. nginx never looks inside a request; it would sit in front of any HTTP service in exactly the same way.
+None of this involves our application. nginx never looks inside a request; it would sit in front of _any_ HTTP service in exactly the same way.
 
 ### Docker Compose
   - Declarative: services, ports and networks in about 50 lines; reproducible from a clean checkout. 
@@ -328,7 +330,7 @@ docker compose up -d --build --scale worker=3 --wait
   - We use Dyalog's [SQAPL](https://docs.dyalog.com/19.0/SQL%20Interface%20Guide.pdf) connector to talk to Postgresql via [ODBC](https://learn.microsoft.com/en-us/sql/odbc/microsoft-open-database-connectivity-odbc). We won't cover this in any detail.
 
 ### The container image
-  - The image is Debian, plus Dyalog's own `.deb` Linux package, plus an ODBC driver, plus Jarvis and Stark. Builds natively on arm64 and x86.
+  - The image is [Debian](https://www.debian.org/), plus Dyalog's own `.deb` Linux package, plus an ODBC driver, plus Jarvis and Stark. Builds natively on arm64 and x86.
 
 This is `worker/Dockerfile`, the recipe for a worker:
 
@@ -366,7 +368,7 @@ Read from the top, it does four things:
 
 1. **Start from a minimal Debian 12.** Install `unixodbc` (the ODBC driver manager) and `odbc-postgresql` (the Postgres driver) from Debian's own package repositories, plus a UTF-8 locale.
 2. **Install Dyalog** the same way you would on any Linux machine: download Dyalog's `.deb` package from dyalog.com and install it with `apt-get`, which pulls in whatever it depends on. The `case` statement picks the arm64 or x86-64 package to match the machine doing the build, so the same file builds natively on an Apple Silicon laptop and on an Intel server. The version is pinned in `DYALOG_APL_VERSION`.
-3. **Fetch Stark and Jarvis** as two source files from Stark's GitHub repository, pinned to a release tag.
+3. **Fetch Stark and Jarvis** as two source files from Stark's [GitHub repository](https://github.com/dyalog-labs/stark), pinned to a release tag.
 4. **Copy in our own APL source.**
 
 When a worker starts, compose runs `dyalogscript /worker/app/Run.apls`, which loads Jarvis, Stark and our code and starts the server.
@@ -387,7 +389,7 @@ The database layer provides another scalability dimension to a system like this.
 
 ## The APL layer
 
-Each worker runs two Dyalog libraries. [Jarvis](https://dyalog.github.io/Jarvis/) is the HTTP server: it accepts the connection, parses the request, turns a JSON body into a namespace, and turns whatever we return back into JSON. [Stark](https://dyalog-labs.github.io/stark/) sits on top of Jarvis and is a convenience layer for building REST APIs: a route table, path parameters like `{number}` in `/issues/{number}`, proper 404 and 405 responses for paths and methods we don't serve, and an OpenAPI description of the whole API. Between them, there is no HTTP code left for us to write.
+Each worker runs two Dyalog libraries. [Jarvis](https://dyalog.github.io/Jarvis/) is the HTTP server: it accepts the connection, parses the request, turns a JSON body into a namespace, and turns whatever we return back into JSON. [Stark](https://dyalog-labs.github.io/stark/) sits on top of Jarvis and is a convenience layer for building REST APIs: a route table, path parameters like `{number}` in `/issues/{number}`, proper 404 and 405 responses for paths and methods we don't serve, and an [OpenAPI](https://www.openapis.org/) description of the whole API. Between them, there is no HTTP code left for us to write.
 
 What's left is a handful of small APL functions, one per endpoint, plus a thin wrapper around SQAPL. We won't go through all fifteen endpoints, but let's look at a selection:
 
@@ -521,7 +523,7 @@ which produces exactly the body GitHub would send:
 
 Every handler in the service follows this recipe: check the input, ask the database with bound values, return what it gives back. That's also where your own application would differ. Your checks, your SQL, your rules go in these functions; everything around them stays the same.
 
-### Where should our rules live?
+### Where _should_ our rules live?
 
 You may have noticed that the handlers don't actually contain much business logic. In this example, a fair share of it lives in the database. Take closing an issue. GitHub's rules say that closing sets `closed_at` and, unless a reason is given, a `state_reason` of `completed`; reopening clears `closed_at` and sets the reason to `reopened`. The handler for `PATCH /issues/{number}` checks only that the values are allowed words, then makes a single call:
 
@@ -536,7 +538,7 @@ You may have noticed that the handlers don't actually contain much business logi
 :If r≡⍬ ⋄ r←NotFound req ⋄ :EndIf
 ```
 
-The rules themselves are a trigger, which Postgres runs on every update of an issue, whoever makes it:
+The rules themselves are [triggers](https://www.postgresql.org/docs/current/plpgsql-trigger.html), which Postgres runs on every update of an issue, whoever makes it:
 
 ```sql
 IF NEW.state = 'closed' AND OLD.state = 'open' THEN
@@ -550,9 +552,9 @@ ELSIF NEW.state = 'open' AND OLD.state = 'closed' THEN
 END IF;
 ```
 
-Likewise, the JSON documents the API returns are built by database views (postgres has exceptional native support for JSON), and the list endpoints are database functions that filter, sort and page in one query.
+Likewise, the JSON documents the API returns are built by database views (postgres has exceptional native [support for JSON](https://www.postgresql.org/docs/current/datatype-json.html)), and the list endpoints are database functions that filter, sort and page in one query.
 
-This is purely a design choice -- and, in fact, a common unresolved debate amongst application builders where there is a database component. Is the database a "dumb store" or core to the application logic? You can argue both ways, but what is undeniably true is that a tool like postgres has exceptional facilities for ensuring that bad data cannot enter the database. In a polyglot environment where the database might be accessed not just through our API, this design is likely more durable. 
+This is purely a design choice -- and, in fact, a common unresolved debate amongst application builders where there is a database component. Is the database a "dumb store" or core to the application logic? You can argue both ways, but what is undeniably true is that a tool like postgres has strong facilities for ensuring that bad data cannot enter the database. In a polyglot environment where the database might be accessed not just through our API, this design is likely more durable. 
 
 In our case, I put the rules next to the data because that kept the APL short and made every write a single call, and so a single transaction. The same rules could equally live in the APL handlers, with the database reduced to plain tables. What the pattern does require is that each request's changes reach the database as one transaction, wherever the rules are written. If your business logic already exists in APL, it belongs in these handlers, and the database's job shrinks to storing the results.
 
