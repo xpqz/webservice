@@ -139,7 +139,7 @@ HTTP 422
 ```sh
 curl -s -w '\nHTTP %{http_code}\n' localhost:8080/issues/99999
 ```
-```
+```json
 {"message":"Not Found"}
 HTTP 404
 ```
@@ -518,7 +518,14 @@ That validation error comes from a three-line helper:
 which produces exactly the body GitHub would send:
 
 ```json
-{"errors":[{"code":"missing_field","field":"title","resource":"Issue"}],"message":"Validation Failed"}
+{
+    "errors": [{
+        "code":     "missing_field",
+        "field":    "title",
+        "resource": "Issue"
+    }],
+    "message":"Validation Failed"
+}
 ```
 
 Every handler in the service follows this recipe: check the input, ask the database with bound values, return what it gives back. That's also where your own application would differ. Your checks, your SQL, your rules go in these functions; everything around them stays the same.
