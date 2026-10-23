@@ -170,21 +170,23 @@ Nothing about the API is specific to `curl`. Here is the "list with filters" req
 
 ## System Architecture
 
+### Images, containers, services, replicas and volumes
+
+Five Docker terms carry the rest of this post:
+
+- An **image** is a packaged, read-only filesystem plus a start command: the operating system's tools and libraries, the software installed on them, and our files. It is either built from a recipe (a `Dockerfile`) or downloaded ready-made (`postgres:17`, `nginx:1.29`).
+- A **container** is a running instance of an image: a process with its own private filesystem and network address. Stopping or restarting a container keeps what it wrote; removing it discards everything it wrote outside mounted storage, and a new one from the same image starts from the same clean state.
+- A **service** is a named entry in `compose.yaml`: which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
+- A **replica** is one of several containers running the same service. `--scale worker=3` starts three identical worker containers, and the name `worker` then resolves to all three addresses. That's what nginx balances across.
+- A **volume** is storage managed by Docker that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives container removal and recreation (`docker compose down -v` deletes it). We also use **bind mounts** to make files from the repository available inside containers, read-only: `nginx.conf`, `db/init` and `console/`. Both are set with the same `volumes:` key in `compose.yaml`.
+
+### How the pieces fit
+
 Here is the system architecture diagram:
 
 ![The pattern: client → nginx → N identical APL workers → database](figures/pattern.svg)
 
 Of this stack, only about 180 lines are APL code, plus about 110 lines of APLAN that describe the API; everything else is configuration of hardened components that thousands of teams already run.
-
-### Images, containers, services, replicas and volumes
-
-Five Docker terms carry the rest of this post:
-
-- An **image** is a packaged, read-only filesystem plus a start command: an operating system, the software installed on it, and our files. It is either built from a recipe (a `Dockerfile`) or downloaded ready-made (`postgres:17`, `nginx:1.29`).
-- A **container** is a running instance of an image: a process with its own private filesystem and network address. Remove a container and whatever it wrote is gone; a new one from the same image starts from the same clean state.
-- A **service** is a named entry in `compose.yaml`: which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
-- A **replica** is one of several containers running the same service. `--scale worker=3` starts three identical worker containers, and the name `worker` then resolves to all three addresses. That's what nginx balances across.
-- A **volume** is storage that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives restarts and rebuilds (`docker compose down -v` deletes it). Configuration is mounted the same way, read-only, straight from the repository: `nginx.conf`, `db/init`, `console/`.
 
 ### One request, end to end
 
