@@ -285,12 +285,13 @@ test_issue_list_sort_updated() {
 }
 
 # conforms SCHEMA_JSON VALUE_JSON -> "true" when the value has exactly the
-# schema's fields, with matching types (OpenAPI 3.0: type, nullable, items)
+# schema's fields, with matching types (OpenAPI 3.0: type, nullable, enum, items)
 conforms() {
     jq -n --argjson s "$1" --argjson v "$2" '
       def jtype: if type == "number" then (if . == floor then "integer" else "number" end) else type end;
       def ok($s):
-        if . == null then ($s.nullable == true)
+        if $s.enum != null and (. as $x | $s.enum | any(. == $x) | not) then false
+        elif . == null then ($s.nullable == true)
         elif $s.type == "array" then (type == "array" and all(.[]; ok($s.items)))
         elif $s.type == "object" then
           (type == "object" and (keys == ($s.properties | keys))

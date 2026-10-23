@@ -11,6 +11,7 @@
     Time←(type: 'string' ⋄ format: 'date-time')
     NullTime←(type: 'string' ⋄ format: 'date-time' ⋄ nullable: ⊂'true')
     Names←(type: 'array' ⋄ items: Text)
+    ⍝ A nullable enum lists null too (OpenAPI 3.0.3): (⊂'null') is JSON null
 
     ⍝ Text the API accepts: up to GitHub's length limit
     In←(type: 'string' ⋄ maxLength: 65536)
@@ -34,7 +35,7 @@
             title: Text
             body: NullText
             state: (type: 'string' ⋄ enum: 'open' 'closed')
-            state_reason: (type: 'string' ⋄ nullable: ⊂'true' ⋄ enum: 'completed' 'not_planned' 'duplicate' 'reopened')
+            state_reason: (type: 'string' ⋄ nullable: ⊂'true' ⋄ enum: 'completed' 'not_planned' 'duplicate' 'reopened' (⊂'null'))
             labels: Labels
             comments: Int
             created_at: Time
@@ -74,7 +75,7 @@
     ))))
     IssueChange←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
         type: 'object'
-        properties: (title: NullIn ⋄ body: NullIn ⋄ state: (type: 'string' ⋄ nullable: ⊂'true' ⋄ enum: 'open' 'closed') ⋄ state_reason: (Issue.properties.state_reason) ⋄ labels: Names)
+        properties: (title: NullIn ⋄ body: NullIn ⋄ state: (type: 'string' ⋄ nullable: ⊂'true' ⋄ enum: 'open' 'closed' (⊂'null')) ⋄ state_reason: (Issue.properties.state_reason) ⋄ labels: Names)
     ))))
     NewLabel←(required: ⊂'true' ⋄ content: (⍙application⍙47⍙json: (schema: (
         type: 'object'
