@@ -2,25 +2,27 @@
 
 By: stefan@dyalog.com
 
-My aim today is to build a fairly complete, reasonably scalable, (but ultimately still a toy) webservice where Dyalog APL's Jarvis functions as the application server holding the business logic. I want to demonstrate an architecture pattern, rather than the code itself in detail so that you could get started with exposing your particular business data via an API. The application we walk through below should be runnable; you can check out the final state in its GitHub repository, [xpqz/webservice](https://github.com/xpqz/webservice).
+My aim today is to build a fairly complete, reasonably scalable, (but ultimately still a toy) webservice where Dyalog APL's Jarvis functions as the application server holding the main business logic. I want to demonstrate an architecture pattern, rather than the code itself in detail so that you could get started with exposing your particular business data via an API. The application we walk through below should be runnable; you can check out the final state in its GitHub repository, [xpqz/webservice](https://github.com/xpqz/webservice).
 
 The title talks about "building from standard parts" -- what does that even mean? As APLers, traditionally, many of us choose to "live in the session", and build every aspect of our systems in APL. This approach has served us well, and the advantage is that an APLer then can retain a good working knowledge of every part of their system. The disadvantage is that we forego the investment and development that has gone into non-APL system building blocks, and that we risk re-inventing the wheel, or solving problems that has already been solved in other contexts. 
 
-Service oriented systems today are often built from standard building blocks, a bit like lego bricks. Grab an off-the-shelf database, a load balancer, perhaps a message queue, distributed search, a firewall, run it in containers using an established orchestrator, drive it all from git etc. Systems built this way are said to be _composable_ -- we add more scaling axes. An orchestrator lets you add or remove capacity as the need changes. The one we'll use today, [Docker Compose](https://docs.docker.com/compose/), runs everything on a single machine: scaling there means starting more processes on that host. Spreading the same containers across several machines, and surviving the loss of one, is what orchestrators like [Kubernetes](https://kubernetes.io/) are for; the containers we build here would move there unchanged. 
+Service oriented systems today are often built from standard building blocks, a bit like lego bricks, requiring configuration only to piece together. Grab an off-the-shelf database, a load balancer, perhaps a message queue, distributed search, a firewall, run it in containers using an established orchestrator, drive it all from git etc. Systems built this way are said to be _composable_ -- we add more scaling axes. 
 
-Of course, you can always write all of this in Dyalog APL; the tools are there. However, the "lego bricks" approach lets you focus on what you know best: your own domain business logic. You don't have to spend time figuring out the best way to load balance Jarvis processes across multiple machines, or how to ensure you have no concurrency data races accessing your data. 
+An orchestrator lets you add or remove capacity as the need changes. The one we'll use today, [Docker Compose](https://docs.docker.com/compose/), runs everything on a single machine: scaling there means starting more processes on that host. Spreading the same containers across several machines, and surviving the loss of one, is what orchestrators like [Kubernetes](https://kubernetes.io/) are for; the containers we build here would move there unchanged. 
+
+Of course, you can always write all of this in Dyalog APL; the tools are there. However, the "lego bricks" approach lets you focus on what _you_ know best: your own domain business logic. You don't have to spend time figuring out the best way to load balance Jarvis processes across multiple machines, or how to ensure you have no concurrency data races accessing your data. 
 
 We're going to build our application using Docker Compose as our orchestration framework, [nginx](https://nginx.org/) as our reverse proxy/load balancer, [postgresql](https://www.postgresql.org/) as our data layer and [Jarvis](https://dyalog.github.io/Jarvis/) + [Stark](https://dyalog-labs.github.io/stark/) as our application server. We'll then show how you can build a simple UI in the [Vue](https://vuejs.org/) JavaScript framework to interact with our service. 
 
 ## Pre-requisites
 
-I will assume broad familiarity with HTTP and JSON and that you are somewhat comfortable typing commands into a terminal. I will also assume you know your way around Jarvis. 
+I will assume broad familiarity with HTTP and JSON and that you are somewhat comfortable typing commands into a terminal. I will also assume you know your way around Jarvis, and -- needless to say -- Dyalog APL.
 
-We're building this in Docker containers but won't go too deep on Docker beyond using it. I will be treating the database as a black box, but if you are interested in its schema, you can examine that in the repository. If reading tiny bits of SQL doesn't put you off your breakfast, that helps, too.
+We're building this in Docker containers but won't go too deep on Docker beyond using it. I will be treating the database mostly as a black box, but if you are interested in its schema, you can examine that in the repository. If reading tiny bits of SQL doesn't put you off your breakfast, that helps, too.
 
-Inevitably, this contains tools and components that are uncommon in use in typical APL shops. I will try to introduce such briefly and suggest further reading. Two tools we'll be calling on occasionally are [curl](https://curl.se/) and [jq](https://jqlang.org/). `curl` is a command-line HTTP client; think of it as Dyalog's [HttpCommand](https://dyalog.github.io/HttpCommand/), but for the terminal. 
+Inevitably, this touches tools and components that are uncommon in use in typical APL shops. I will try to introduce such briefly and suggest further reading. Two tools we'll be calling on occasionally are [curl](https://curl.se/) and [jq](https://jqlang.org/). `curl` is a command-line HTTP client; think of it as Dyalog's [HttpCommand](https://dyalog.github.io/HttpCommand/), but for the terminal. 
 
-`jq` is a command-line JSON processor -- it lets you filter and transform JSON data to pick out only the bits you care about. We won't use many of `jq`'s fancier features; it's mainly a JSON pretty-printer for us.
+`jq` is a command-line JSON processor -- it lets you filter and transform JSON data to pick out only the bits you care about. We won't use many of `jq`'s fancier features; it's mainly a JSON pretty-printer for us. Our test suite uses `jq`, but we won't look at that here.
 
 If you're coding along, you may want to install those if they didn't come with your system already. 
 
@@ -28,7 +30,11 @@ If you're coding along, you may want to install those if they didn't come with y
 
 ## The application
 
-We're going to implement a subset of GitHub's issues API. If you're unfamiliar with the issues system, you can think of it as a ticketing system for bugs, feature requests, tasks etc. An issue can be labelled, commented on, opened, closed, edited etc. This API is REST-based, and can be interacted with directly over HTTP, or via the `gh` command line utility. Why did we choose this? Well, for our purposes it's convenient to be able to target an existing API, rather than spending time presenting -- and inventing -- something new. It's also small and self-contained. Note that we won't be targetting GitHub itself: we'll have our own data store. We'll also skip or gloss over many hard parts that would balloon the scope of this blog post. For example, our application will be running unauthenticated and open; not what you want for a real application. 
+We're going to implement a subset of GitHub's issues API. If you're unfamiliar with the issues system, you can think of it as a ticketing system for bugs, feature requests, tasks etc. An issue can be labelled, commented on, opened, closed, edited etc. This API is REST-based, and can be interacted with directly over HTTP, or via the `gh` command line utility. 
+
+Why did we choose this? Well, for our purposes it's convenient to be able to target an existing API, rather than spending time inventing something new from scratch. As an example, it's large enough to justify the pattern, yet small enough to understand at a glance. 
+
+Note that we won't be targetting GitHub itself: we'll have our own data store. We'll also skip or gloss over many hard parts that would balloon the scope of this blog post. For example, our application will be running unauthenticated and open; _not_ what you want for a real application. 
 
 ### Getting it running
 
@@ -172,7 +178,7 @@ Nothing about the API is specific to `curl`. Here is the "list with filters" req
 
 ### Images, containers, services, replicas and volumes
 
-Five Docker terms carry the rest of this post:
+If you're unfamiliar with Docker's terminology, here are some terms I'll be using in this post:
 
 - An **image** is a packaged, read-only filesystem plus a start command: the operating system's tools and libraries, the software installed on them, and our files. It is either built from a recipe (a `Dockerfile`) or downloaded ready-made (`postgres:17`, `nginx:1.29`).
 - A **container** is a running instance of an image: a process with its own private filesystem and network address. Stopping or restarting a container keeps what it wrote; removing it discards everything it wrote outside mounted storage, and a new one from the same image starts from the same clean state.
@@ -186,11 +192,9 @@ Here is the system architecture diagram:
 
 ![The pattern: client → nginx → N identical APL workers → database](figures/pattern.svg)
 
-Of this stack, only about 180 lines are APL code, plus about 110 lines of APLAN that describe the API; everything else is configuration of hardened components that thousands of teams already run.
+Of this stack, only about 180 lines are APL code, plus about 110 lines of array notation literals that describe the API; everything else is configuration of hardened components that thousands of teams already run.
 
-### One request, end to end
-
-Here is what happens when you run `curl localhost:8080/issues/14`:
+As an example, here is what happens when you run `curl localhost:8080/issues/14`:
 
 1. Docker forwards port 8080 on your machine to port 80 in the `nginx` container. That is the only way in.
 2. nginx asks Docker's DNS for `worker`, gets the address of every replica, and passes the request to the next one in turn.
@@ -203,10 +207,10 @@ A write takes the same path; only step 4 changes, to a call to a database functi
 
 ### nginx
   - Single "front door".
-  - Load balancing across processes. An APL interpreter is one process, so you scale by running more of them, and something has to spread the work.
+  - Load balancing across processes. An APL interpreter is one process, so you scale by running more of them, and something has to distribute the work.
   - Picks up new workers live (`--scale worker=5`, no restart).
-  - Config options for TLS, gzip, timeouts, request-size limits, buffering slow clients, rate limiting, caching, static files and much more.
-  - A hardened public attack surface, so your APL process never faces the internet directly.
+  - Config options for TLS, gzip, timeouts, request-size limits, buffering slow clients, rate limiting, caching, static files and more.
+  - Your APL process never faces the internet directly.
 
 This is the entire configuration, `nginx/nginx.conf`:
 
@@ -375,17 +379,17 @@ The whole system so far involves no code, only configuration of our three "lego 
 
 ## Stateless workers
 
-One of the key ideas here is that the APL workers are completely stateless. Any worker can answer any request. All state is the responsibility of the database layer. There are no threads to coordinate and no critical sections to guard in the APL. That doesn't mean concurrency needs no thought; it means the thinking happens in the database, where transactions and locks are the tools for it, and postgresql is very good at it. Here, each request is one call to the database, and so one transaction. Creating an issue together with its labels, for example, is one call to a database function: it either happens completely or not at all. The function also locks the labels it attaches (`FOR SHARE`), so another worker can't delete one halfway through. One call per request is a convenience of this example, not a rule: a transaction can span several calls, and postgresql's [isolation levels](https://www.postgresql.org/docs/17/transaction-iso.html) decide what concurrent transactions can see of each other. 
+One of the key ideas here is that the APL workers are completely stateless. Any worker can answer any request. All state is the responsibility of the database layer. There are no threads to coordinate and no critical sections to guard in the APL. Concurrency still requires thought, but this is now delegated to the database, where transactions and locks are the tools for it. In our design, each request is single call to the database, and so one transaction. Creating an issue together with its labels, for example, is one call to a database function: it either happens completely or not at all. The function also locks the labels it attaches (`FOR SHARE`), so another worker can't delete one halfway through. One call per request is a convenience of this example, not a rule: a transaction can span several calls, and postgresql's [isolation levels](https://www.postgresql.org/docs/17/transaction-iso.html) decide what concurrent transactions can see of each other. 
 
-In some respects, this cuts against APL habits (a long-lived workspace accumulating state), but for an application like this, it makes everything easier to reason about, and to scale. The one job of our APL layer is to take the incoming request, convert it to a SQL query, send this query to the database, and return the results. Done. 
+In some respects, this cuts against APL habits (a long-lived workspace accumulating state), but for an application like this it makes everything easier to reason about. The one job of our APL layer is to take the incoming request, convert it to a SQL query, send this query to the database, and return the results. Done. 
 
-The database layer provides another scalability dimension to a system like this. We're running a single postgresql node, but it has built-in clustering facilities, support for split reads and writes etc. How much load a single database can take depends on the queries and the hardware, so it has to be measured rather than guessed. Replication, routing reads to replicas, and scaling writes are each design decisions with their own trade-offs (PostgreSQL's [overview](https://www.postgresql.org/docs/17/high-availability.html) is a good start), and they are outside the scope of this example. 
+The database layer provides another scalability dimension to a system like this. We're running a single postgresql node, but it has built-in clustering facilities, support for split reads and writes etc. How much load a single database can take depends on the queries and the hardware, so it has to be measured rather than guessed. Replication, routing reads to replicas, and scaling writes are each design decisions with their own trade-offs (PostgreSQL's [overview](https://www.postgresql.org/docs/17/high-availability.html) is a good start), but they are outside the scope of this example. 
 
 ## The APL layer
 
-Each worker runs two Dyalog libraries. [Jarvis](https://dyalog.github.io/Jarvis/) is the HTTP server: it accepts the connection, parses the request, turns a JSON body into a namespace, and turns whatever we return back into JSON. [Stark](https://dyalog-labs.github.io/stark/) sits on top of Jarvis and adds the things a REST API needs: a route table, path parameters like `{number}` in `/issues/{number}`, proper 404 and 405 responses for paths and methods we don't serve, and an OpenAPI description of the whole API. Between them, there is no HTTP code left for us to write.
+Each worker runs two Dyalog libraries. [Jarvis](https://dyalog.github.io/Jarvis/) is the HTTP server: it accepts the connection, parses the request, turns a JSON body into a namespace, and turns whatever we return back into JSON. [Stark](https://dyalog-labs.github.io/stark/) sits on top of Jarvis and is a convenience layer for building REST APIs: a route table, path parameters like `{number}` in `/issues/{number}`, proper 404 and 405 responses for paths and methods we don't serve, and an OpenAPI description of the whole API. Between them, there is no HTTP code left for us to write.
 
-What's left is a handful of small APL functions, one per endpoint, plus a thin wrapper around SQAPL. We won't go through all fifteen endpoints; three are enough to show the pattern.
+What's left is a handful of small APL functions, one per endpoint, plus a thin wrapper around SQAPL. We won't go through all fifteen endpoints, but let's look at a selection:
 
 ### Starting the server
 
@@ -417,7 +421,7 @@ Here are three rows of the route table:
 'GET'   '/issues'           'ListIssues'   (summary: 'List issues' ⋄ parameters: (State ⋄ LabelFilter ⋄ Sort ⋄ PerPage ⋄ Page) ⋄ responses: (200 Issues ⋄))
 ```
 
-The first three columns are the routing: an HTTP method, a path pattern and the name of the function that handles it. The fourth column is the interesting one. It's a namespace describing the endpoint: a summary, its parameters, the shape of the request body, and which status codes it answers with and what they carry. `Issue`, `Error`, `NewIssue` and the rest are ordinary namespace literals defined once at the top of the same file:
+The first three columns defines the routing: an HTTP method, a path pattern and the name of the function that handles it. The fourth column is the interesting one. It's a namespace literal describing the endpoint: a summary, its parameters, the shape of the request body, and which status codes it answers with and what they carry. `Issue`, `Error`, `NewIssue` and the rest are ordinary namespace literals defined once at the top of the same file:
 
 ```apl
 Issue←(
@@ -435,7 +439,9 @@ Issue←(
 )
 ```
 
-From this table, Stark generates the API's [OpenAPI](https://www.openapis.org/) description and serves it at `/openapi.json`. OpenAPI is the standard, machine-readable way of describing a REST API, and a whole ecosystem of tools reads it. Point any [Swagger UI](https://swagger.io/tools/swagger-ui/) at `http://localhost:8080/openapi.json` and you get browsable, clickable documentation, with a "try it out" button on every endpoint. Code generators can produce a client library for the API in most mainstream languages from the same file.
+From this table, Stark generates the API's [OpenAPI](https://www.openapis.org/) description and serves it at `/openapi.json`. OpenAPI is the standard, machine-readable way of describing a REST API, and a whole ecosystem of tools reads it. 
+
+Point any [Swagger UI](https://swagger.io/tools/swagger-ui/) at `http://localhost:8080/openapi.json` and you get browsable, clickable documentation, with a "try it out" button on every endpoint. Code generators can produce a client library for the API in most mainstream languages from the same file.
 
 ![Swagger UI listing all fifteen operations of the Issues API, each with the summary from its route-table row](figures/swagger-overview.png)
 
@@ -455,7 +461,7 @@ It's worth stressing that the description and the routing are the same piece of 
 
 Stark publishes the description but doesn't enforce it, so nothing stops a schema from disagreeing with what an endpoint really returns. In the test suite we fetch `/openapi.json` and check real responses against it.
 
-If you've built REST-style APIs with Jarvis before, do investigate Stark -- it takes away almost all busywork you'd normally do. Stark follows the patterns of many other API authoring frameworks, so if you've previously come across something like [FastAPI](https://fastapi.tiangolo.com/) you'll feel at home. 
+If you've built REST-style APIs with Jarvis before, I encourage you to investigate Stark -- it takes away almost all busywork you'd normally do. Stark follows the patterns of many other API authoring frameworks, so if you've previously come across something like [FastAPI](https://fastapi.tiangolo.com/) you'll feel at home, conceptually.
 
 ### The handlers
 
@@ -515,9 +521,9 @@ which produces exactly the body GitHub would send:
 
 Every handler in the service follows this recipe: check the input, ask the database with bound values, return what it gives back. That's also where your own application would differ. Your checks, your SQL, your rules go in these functions; everything around them stays the same.
 
-### Where the rules live
+### Where should our rules live?
 
-You may have noticed that the handlers don't contain much business logic. In this example, a fair share of it lives in the database. Take closing an issue. GitHub's rules say that closing sets `closed_at` and, unless a reason is given, a `state_reason` of `completed`; reopening clears `closed_at` and sets the reason to `reopened`. The handler for `PATCH /issues/{number}` checks only that the values are allowed words, then makes a single call:
+You may have noticed that the handlers don't actually contain much business logic. In this example, a fair share of it lives in the database. Take closing an issue. GitHub's rules say that closing sets `closed_at` and, unless a reason is given, a `state_reason` of `completed`; reopening clears `closed_at` and sets the reason to `reopened`. The handler for `PATCH /issues/{number}` checks only that the values are allowed words, then makes a single call:
 
 ```apl
 :If ~(⊂state)∊'' 'open' 'closed' ⋄ r←'Issue'Invalid req'state' 'invalid' ⋄ →0 ⋄ :EndIf
@@ -544,9 +550,11 @@ ELSIF NEW.state = 'open' AND OLD.state = 'closed' THEN
 END IF;
 ```
 
-Likewise, the JSON documents the API returns are built by database views, and the list endpoints are database functions that filter, sort and page in one query.
+Likewise, the JSON documents the API returns are built by database views (postgres has exceptional native support for JSON), and the list endpoints are database functions that filter, sort and page in one query.
 
-This is a choice, not a requirement of the pattern. I put the rules next to the data because that kept the APL short and made every write a single call, and so a single transaction. The same rules could equally live in the APL handlers, with the database reduced to plain tables. What the pattern does require is that each request's changes reach the database as one transaction, wherever the rules are written. If your business logic already exists in APL, it belongs in these handlers, and the database's job shrinks to storing the results.
+This is purely a design choice -- and, in fact, a common unresolved debate amongst application builders where there is a database component. Is the database a "dumb store" or core to the application logic? You can argue both ways, but what is undeniably true is that a tool like postgres has exceptional facilities for ensuring that bad data cannot enter the database. In a polyglot environment where the database might be accessed not just through our API, this design is likely more durable. 
+
+In our case, I put the rules next to the data because that kept the APL short and made every write a single call, and so a single transaction. The same rules could equally live in the APL handlers, with the database reduced to plain tables. What the pattern does require is that each request's changes reach the database as one transaction, wherever the rules are written. If your business logic already exists in APL, it belongs in these handlers, and the database's job shrinks to storing the results.
 
 ## A console
 
@@ -557,12 +565,12 @@ However, wouldn't it be nice to have a GUI client to use with this? Making JavaS
 The architecture:
 
   - A separate container that only serves files; once the page is loaded, the browser talks to the API like any other client.
-  - No private path into the service, which proves the API is enough.
+  - No private path into the service, which proves the API is sufficient.
   - Jarvis already handles [CORS](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing); one header exposes `X-Worker` to the page.
   - [Vue.js](https://vuejs.org/) without a build step: an import map, four files, no `npm`.
   - The request log panel is a teaching device, showing each REST call and the JSON going in both directions.
 
-The LLM point: building a competent web UI in JavaScript has become cheap. The APL developer's strength is in the domain and the API, so let the UI live where the tooling, the documentation and the LLM support are strongest. The web UI client came together without much ceremony. I opined a couple of times on architecture and visuals, but otherwise it was basically auto-generated. I wrote no JavaScript, HTML or CSS.
+On LLMs: building a competent web UI in JavaScript has become very accessible. The APL developer's strength is in the domain and the API design, so let the UI live where tooling, documentation and LLM support are strongest. The web UI client came together without much ceremony. I opined a couple of times on architecture and visuals, but otherwise it was basically auto-generated. I wrote no JavaScript, HTML or CSS.
 
 Here are some screenshots of what it looks like, with our data set being imported issues from the Link repository.
 
