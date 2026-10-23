@@ -1,14 +1,5 @@
 ⍝ Boot one worker: load Stark (and the Jarvis server it builds on), then our code.
-
-⍝ Jarvis writes non-ASCII characters as \uXXXX with four hex digits, which
-⍝ corrupts characters above U+FFFF; JSON wants those as a UTF-16 surrogate
-⍝ pair. Patch that one line before fixing Jarvis, until Jarvis is fixed.
-src←⊃⎕NGET'/opt/stark/Jarvis.aplc' 1
-old←'      w[i]←{⊂''\u'',''0123456789ABCDEF''[16 16 16 16⊤⍵]}¨c[i]'
-new←'      w[i]←{h←{''0123456789ABCDEF''[16 16 16 16⊤⍵]} ⋄ ⍵<65536:⊂''\u'',h ⍵ ⋄ v←⍵-65536 ⋄ ⊂''\u'',(h 55296+⌊v÷1024),''\u'',h 56320+1024|v}¨c[i]'
-'Jarvis SafeJSON patch: line not found'⎕SIGNAL 11/⍨1≠+/src≡¨⊂old
-src[⍸src≡¨⊂old]←⊂new
-⎕FIX src
+⎕FIX'file:///opt/stark/Jarvis.aplc'
 ⎕FIX'file:///opt/stark/Stark.aplc'
 ⎕FIX¨'file:///worker/app/'∘,¨'Db.apln' 'Api.apln' 'Service.apln'
 Service.Start

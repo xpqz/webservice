@@ -87,7 +87,7 @@ for i in 1 2 3; do curl -s -o /dev/null -D - localhost:8080/health | grep -i x-w
 | `API_PORT` | environment or `.env` | `8080` | Host port for the API. The console expects 8080, so change this only if you don't use the console. |
 | `CONSOLE_PORT` | environment or `.env` | `3000` | Host port for the console. |
 | `DYALOG_APL_VERSION` | build arg, `worker/Dockerfile` | `20.0.53963` | Dyalog version to install. Stark needs 20.0 or later. |
-| `STARK_VERSION` | build arg, `worker/Dockerfile` | `v0.2.4` | Stark release to fetch. |
+| `STARK_VERSION` | build arg, `worker/Dockerfile` | `v0.2.5` | Stark release to fetch. |
 
 After changing APL code in `worker/`, rebuild with `docker compose up -d --build --scale worker=3 --wait`. The code is baked into the image. Console files are served straight from `console/`, so a browser reload is enough there.
 
