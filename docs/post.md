@@ -456,20 +456,21 @@ The `I` in the SQL is a SQAPL bind-variable marker, `:<I:`, meaning "an integer 
 Creating an issue follows the same pattern, with a little more checking first:
 
 ```apl
-∇ r←CreateIssue req;p;title;labels;n
+∇ r←CreateIssue req;p;title;labels
   p←req.Payload
   title←p Text'title'
   labels←p Json'labels'
   :If 0=≢title ⋄ r←'Issue'Invalid req'title' 'missing_field' ⋄ →0 ⋄ :EndIf
-  :If 0<UnknownLabels labels ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0 ⋄ :EndIf
-  n←⊃#.Db.Do('INSERT INTO issues (title, body) VALUES (',T,', NULLIF(',T,', '''')) RETURNING number')title(p Text'body')
-  SetLabels n labels'true'
-  req.SetStatus 201
-  r←Issue n
+  :Trap 500
+      r←#.Db.Doc('SELECT create_issue(',T,', ',T,', ',J,')')title(p Text'body')labels
+      req.SetStatus 201
+  :Else
+      r←'Issue'Invalid req'labels' 'invalid'
+  :EndTrap
 ∇
 ```
 
-Jarvis has parsed the JSON body into `req.Payload`. `Text` reads a text field from it, refusing anything that isn't text, and `Json` does the same for the list of label names. If the title is missing, or a label doesn't exist, we answer with GitHub's validation error. Otherwise it's one `INSERT`, attach the labels, set the status to 201 Created, and return the new issue, using the same `Issue` function as before.
+Jarvis has parsed the JSON body into `req.Payload`. `Text` reads a text field from it, refusing anything that isn't text, and `Json` does the same for the list of label names. If the title is missing we answer with GitHub's validation error. Otherwise it's one call to the database function `create_issue`, which creates the issue, attaches its labels and returns the new issue's document, all in one transaction. If a label doesn't exist, the function fails, nothing is created, and we answer with the same validation error.
 
 That validation error comes from a three-line helper:
 
@@ -496,10 +497,12 @@ You may have noticed that the handlers don't contain much business logic. In thi
 ```apl
 :If ~(⊂state)∊'' 'open' 'closed' ⋄ r←'Issue'Invalid req'state' 'invalid' ⋄ →0 ⋄ :EndIf
 ...
-:Select ⊃⊃#.Db.Do('SELECT update_issue(',I,', ',T,', ',T,', ',T,', ',T,', ',J,')')n(p Text'title')(p Text'body')state reason labels
-:Case 0 ⋄ r←NotFound req ⋄ →0
-:Case ¯1 ⋄ r←'Issue'Invalid req'labels' 'invalid' ⋄ →0
-:EndSelect
+:Trap 500
+    r←#.Db.Doc('SELECT update_issue(',I,', ',T,', ',T,', ',T,', ',T,', ',J,')')n(p Text'title')(p Text'body')state reason labels
+:Else
+    r←'Issue'Invalid req'labels' 'invalid' ⋄ →0
+:EndTrap
+:If r≡⍬ ⋄ r←NotFound req ⋄ :EndIf
 ```
 
 The rules themselves are a trigger, which Postgres runs on every update of an issue, whoever makes it:
