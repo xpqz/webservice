@@ -18,7 +18,7 @@ We're going to build our application using Docker Compose as our orchestration f
 
 I will assume broad familiarity with [HTTP](https://en.wikipedia.org/wiki/HTTP) and [JSON](https://www.json.org/) and that you are somewhat comfortable typing commands into a terminal. I will also assume you know your way around Jarvis, and -- needless to say -- Dyalog APL. I'll be using Dyalog v20, and make good use of its [array notation](https://docs.dyalog.com/20.0/programming-reference-guide/introduction/arrays/array-notation/).
 
-We're building this in Docker containers but won't go too deep on Docker beyond using it. I will be treating the database mostly as a black box, but if you are interested in its schema, you can examine that in the repository. If reading tiny bits of [SQL](https://en.wikipedia.org/wiki/SQL) doesn't put you off your breakfast, that helps, too.
+We're building this in Docker containers but won't go too deep on Docker beyond using it. I will be treating the database mostly as a black box, but if you are interested in its [schema](https://github.com/xpqz/webservice/blob/main/db/init/01-schema.sql), you can examine that in the repository. If reading tiny bits of [SQL](https://en.wikipedia.org/wiki/SQL) doesn't put you off your breakfast, that helps, too.
 
 Inevitably, this touches tools and components that are uncommon in use in typical APL shops. I will try to introduce such briefly and suggest further reading. Two tools we'll be calling on occasionally are [curl](https://curl.se/) and [jq](https://jqlang.org/). `curl` is a command-line HTTP client; think of it as Dyalog's [HttpCommand](https://dyalog.github.io/HttpCommand/), but for the terminal. 
 
@@ -144,7 +144,7 @@ curl -s -w '\nHTTP %{http_code}\n' localhost:8080/issues/99999
 HTTP 404
 ```
 
-**Bonus: the load balancing in action**
+**See the load balancing**
 
 Four requests in a row, answered by three different workers.
 ```sh
