@@ -16,7 +16,7 @@ We're going to build our application using Docker Compose as our orchestration f
 
 ## Pre-requisites
 
-I will assume broad familiarity with [HTTP](https://en.wikipedia.org/wiki/HTTP) and [JSON](https://www.json.org/) and that you are somewhat comfortable typing commands into a terminal. I will also assume you know your way around Jarvis, and -- needless to say -- Dyalog APL.
+I will assume broad familiarity with [HTTP](https://en.wikipedia.org/wiki/HTTP) and [JSON](https://www.json.org/) and that you are somewhat comfortable typing commands into a terminal. I will also assume you know your way around Jarvis, and -- needless to say -- Dyalog APL. I'll be using Dyalog v20, and make good use of its [array notation](https://docs.dyalog.com/20.0/programming-reference-guide/introduction/arrays/array-notation/).
 
 We're building this in Docker containers but won't go too deep on Docker beyond using it. I will be treating the database mostly as a black box, but if you are interested in its schema, you can examine that in the repository. If reading tiny bits of [SQL](https://en.wikipedia.org/wiki/SQL) doesn't put you off your breakfast, that helps, too.
 
