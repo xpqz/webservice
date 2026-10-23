@@ -182,9 +182,9 @@ If you're unfamiliar with Docker's terminology, here are some terms I'll be usin
 
 - An [**image**](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/) is a packaged, read-only filesystem plus a start command: the operating system's tools and libraries, the software installed on them, and our files. It is either built from a recipe (a [**Dockerfile**](https://docs.docker.com/reference/dockerfile/)) or downloaded ready-made (`postgres:17`, `nginx:1.29`).
 - A [**container**](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/) is a running instance of an image: a process with its own private filesystem and network address. Stopping or restarting a container keeps what it wrote; removing it discards everything it wrote outside mounted storage, and a new one from the same image starts from the same clean state.
-- A [**service**](https://docs.docker.com/reference/compose-file/services/) is a named entry in `compose.yaml`: which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
+- A [**service**](https://docs.docker.com/reference/compose-file/services/) is a named entry in [`compose.yaml`](https://github.com/xpqz/webservice/blob/main/compose.yaml): which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
 - A [**replica**](https://docs.docker.com/reference/compose-file/deploy/#replicas) is one of several containers running the same service. `--scale worker=3` starts three identical worker containers, and the name `worker` then resolves to all three addresses. That's what nginx balances across.
-- A [**volume**](https://docs.docker.com/engine/storage/volumes/) is storage managed by Docker that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives container removal and recreation (`docker compose down -v` deletes it). We also use [**bind mounts**](https://docs.docker.com/engine/storage/bind-mounts/) to make files from the repository available inside containers, read-only: `nginx.conf`, `db/init` and `console/`. Both are set with the same `volumes:` key in `compose.yaml`.
+- A [**volume**](https://docs.docker.com/engine/storage/volumes/) is storage managed by Docker that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives container removal and recreation (`docker compose down -v` deletes it). We also use [**bind mounts**](https://docs.docker.com/engine/storage/bind-mounts/) to make files from the repository available inside containers, read-only: [`nginx.conf`](https://github.com/xpqz/webservice/blob/main/nginx/nginx.conf), [`db/init`](https://github.com/xpqz/webservice/tree/main/db/init) and [`console/`](https://github.com/xpqz/webservice/tree/main/console). Both are set with the same `volumes:` key in [`compose.yaml`](https://github.com/xpqz/webservice/blob/main/compose.yaml).
 
 Docker has exceptional [documentation](https://docs.docker.com/). 
 
@@ -214,7 +214,7 @@ A write takes the same path; only step 4 changes, to a call to a database functi
   - Config options for TLS, gzip, timeouts, request-size limits, buffering slow clients, rate limiting, caching, static files and more.
   - Your APL process never faces the internet directly.
 
-This is the entire configuration, `nginx/nginx.conf`:
+This is the entire configuration, [`nginx/nginx.conf`](https://github.com/xpqz/webservice/blob/main/nginx/nginx.conf):
 
 ```nginx
 events {}
@@ -253,7 +253,7 @@ None of this involves our application. nginx never looks inside a request; it wo
   - Isolation: workers and database aren't reachable from outside.
   - The same images move seamlessly to Kubernetes or a cloud runtime later.
 
-This is the whole system, `compose.yaml`:
+This is the whole system, [`compose.yaml`](https://github.com/xpqz/webservice/blob/main/compose.yaml):
 
 ```yaml
 services:
@@ -312,7 +312,7 @@ volumes:
   pgdata:
 ```
 
-There are four services. Three of them, `postgres`, `nginx` and `console`, are official images used exactly as published; we only hand them configuration. `postgres` gets its schema from `db/init`, which the image runs once, the first time it starts with an empty data volume. `nginx` gets the config file we saw above. `console` is a second, unconfigured nginx that serves the browser app's files; more on that later. Only `worker` is built by us, from `worker/Dockerfile`, which we'll look at next.
+There are four services. Three of them, `postgres`, `nginx` and `console`, are official images used exactly as published; we only hand them configuration. `postgres` gets its schema from [`db/init`](https://github.com/xpqz/webservice/tree/main/db/init), which the image runs once, the first time it starts with an empty data volume. `nginx` gets the config file we saw above. `console` is a second, unconfigured nginx that serves the browser app's files; more on that later. Only `worker` is built by us, from [`worker/Dockerfile`](https://github.com/xpqz/webservice/blob/main/worker/Dockerfile), which we'll look at next.
 
 Each service is reachable from the others by its name, which is why the workers find the database at `PGHOST: postgres` and nginx finds the workers at `worker:8080`. Only two services publish ports to your machine: nginx on 8080 and the console on 3000. The workers and the database can't be reached from outside at all. (The `${API_PORT:-8080}` form means "the variable `API_PORT` if it is set, otherwise 8080"; the tests use it to run a second copy of the stack on other ports.)
 
@@ -332,7 +332,7 @@ docker compose up -d --build --scale worker=3 --wait
 ### The container image
   - The image is [Debian](https://www.debian.org/), plus Dyalog's own `.deb` Linux package, plus an ODBC driver, plus Jarvis and Stark. Builds natively on arm64 and x86.
 
-This is `worker/Dockerfile`, the recipe for a worker:
+This is [`worker/Dockerfile`](https://github.com/xpqz/webservice/blob/main/worker/Dockerfile), the recipe for a worker:
 
 ```dockerfile
 # A worker is plain Debian plus four packages:
@@ -589,7 +589,7 @@ The next screen shows #14 "Support multiple items in a single source file" open,
 
 ![Another screen](figures/console-request-log.png)
 
-The console is a separate client that runs entirely in the browser and knows the service only through its public REST API. All network traffic goes through a single function, `call(method, path, body)` in `api.js`, which wraps fetch, turns API errors into exceptions that carry GitHub's message and field errors, and records every request and response in a capped, reactive log. That log is what the request panel displays, so the console doubles as a window onto the API. The UI is four small components (issue list, issue view, issue form, request log) coordinated by one shared reactive store. The store holds which issue is open, whether a new one is being written, the label filter, and a change counter that the list watches so it reloads after any edit. Every piece of state the console shows is fetched from the API, and nothing is kept locally: the console makes each change through the API and then reloads the views it affects. It doesn't poll, so changes made by another client show up on the next reload. Any other client could do the same job.
+The console is a separate client that runs entirely in the browser and knows the service only through its public REST API. All network traffic goes through a single function, `call(method, path, body)` in [`api.js`](https://github.com/xpqz/webservice/blob/main/console/api.js), which wraps fetch, turns API errors into exceptions that carry GitHub's message and field errors, and records every request and response in a capped, reactive log. That log is what the request panel displays, so the console doubles as a window onto the API. The UI is four small components (issue list, issue view, issue form, request log) coordinated by one shared reactive store. The store holds which issue is open, whether a new one is being written, the label filter, and a change counter that the list watches so it reloads after any edit. Every piece of state the console shows is fetched from the API, and nothing is kept locally: the console makes each change through the API and then reloads the views it affects. It doesn't poll, so changes made by another client show up on the next reload. Any other client could do the same job.
 
 Here is the heart of `call()`, trimmed of the bookkeeping for the request log. It's the browser's own `fetch`, sending and receiving JSON, the same exchange `curl` had with the API earlier:
 
@@ -609,7 +609,7 @@ export async function call(method, path, body) {
 }
 ```
 
-And here is how the issue view uses it, from `app.js`. Loading an issue is two GETs, sent in parallel; closing one, or adding a comment, is one call followed by a reload. Responses can arrive out of order, so only the latest load may update the view:
+And here is how the issue view uses it, from [`app.js`](https://github.com/xpqz/webservice/blob/main/console/app.js). Loading an issue is two GETs, sent in parallel; closing one, or adding a comment, is one call followed by a reload. Responses can arrive out of order, so only the latest load may update the view:
 
 ```js
 let latest = 0
