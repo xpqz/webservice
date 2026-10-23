@@ -190,6 +190,45 @@ BEGIN
     RETURN 1;
 END $$;
 
+-- Writes that answer with the document they made: the write and the read
+-- are one transaction, so the answer is exactly what was written. No row
+-- means there was nothing to change.
+
+-- Create a label; '' means "use the default".
+CREATE FUNCTION create_label(new_name text, new_color text, new_description text) RETURNS SETOF json
+LANGUAGE plpgsql AS $$
+DECLARE made int;
+BEGIN
+    INSERT INTO labels (name, color, description)
+         VALUES (new_name, coalesce(NULLIF(new_color, ''), 'ededed'), NULLIF(new_description, ''))
+      RETURNING id INTO made;
+    RETURN QUERY SELECT doc FROM label_doc WHERE id = made;
+END $$;
+
+-- Change the given fields of the label called old_name; '' means "leave as it is".
+CREATE FUNCTION update_label(old_name text, new_name text, new_color text, new_description text) RETURNS SETOF json
+LANGUAGE plpgsql AS $$
+DECLARE changed int;
+BEGIN
+    UPDATE labels SET name        = coalesce(NULLIF(new_name, ''), name),
+                      color       = coalesce(NULLIF(new_color, ''), color),
+                      description = coalesce(NULLIF(new_description, ''), description)
+     WHERE lower(name) = lower(old_name)
+     RETURNING id INTO changed;
+    RETURN QUERY SELECT doc FROM label_doc WHERE id = changed;
+END $$;
+
+-- Add a comment to issue n; no row if there is no such issue.
+CREATE FUNCTION create_comment(n int, new_body text) RETURNS SETOF json
+LANGUAGE plpgsql AS $$
+DECLARE made int;
+BEGIN
+    INSERT INTO comments (issue_number, body)
+         SELECT number, new_body FROM issues WHERE number = n
+      RETURNING id INTO made;
+    RETURN QUERY SELECT doc FROM comment_doc WHERE id = made;
+END $$;
+
 -- One page of an issue's comments, oldest first.
 CREATE FUNCTION list_comments(n int, lim int, off int) RETURNS json LANGUAGE sql STABLE AS $$
     SELECT coalesce(json_agg(doc ORDER BY id), '[]')

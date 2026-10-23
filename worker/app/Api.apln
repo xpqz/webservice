@@ -24,26 +24,26 @@
       :If r≡⍬ ⋄ r←NotFound req ⋄ :EndIf
     ∇
 
-    ∇ r←CreateLabel req;name;id
-      name←req.Payload Text'name'
+    ∇ r←CreateLabel req;p;name
+      p←req.Payload
+      name←p Text'name'
       :If 0=≢name ⋄ r←'Label'Invalid req'name' 'missing_field' ⋄ →0 ⋄ :EndIf
       :Trap 500
-          id←#.Db.Do('INSERT INTO labels (name, color, description) VALUES (',T,', coalesce(NULLIF(',T,', ''''), ''ededed''), NULLIF(',T,', '''')) RETURNING id')name(req.Payload Text'color')(req.Payload Text'description')
+          r←#.Db.Doc('SELECT create_label(',T,', ',T,', ',T,')')name(p Text'color')(p Text'description')
           req.SetStatus 201
-          r←#.Db.Doc('SELECT doc FROM label_doc WHERE id = ',I)(⊃id)
       :Else
           r←'Label'Invalid req'name'(Unique ⍬)
       :EndTrap
     ∇
 
-    ∇ r←UpdateLabel req;id
+    ∇ r←UpdateLabel req;p
+      p←req.Payload
       :Trap 500
-          id←#.Db.Do('WITH u AS (UPDATE labels SET name = coalesce(NULLIF(',T,', ''''), name), color = coalesce(NULLIF(',T,', ''''), color), description = coalesce(NULLIF(',T,', ''''), description) WHERE lower(name) = lower(',T,') RETURNING id) SELECT id FROM u')(req.Payload Text'new_name')(req.Payload Text'color')(req.Payload Text'description')req.PathParams.name
+          r←#.Db.Doc('SELECT update_label(',T,', ',T,', ',T,', ',T,')')req.PathParams.name(p Text'new_name')(p Text'color')(p Text'description')
       :Else
           r←'Label'Invalid req'name'(Unique ⍬) ⋄ →0
       :EndTrap
-      :If 0=≢id ⋄ r←NotFound req ⋄ →0 ⋄ :EndIf
-      r←#.Db.Doc('SELECT doc FROM label_doc WHERE id = ',I)(⊃id)
+      :If r≡⍬ ⋄ r←NotFound req ⋄ :EndIf
     ∇
 
     ∇ r←DeleteLabel req
@@ -130,18 +130,16 @@
 
     ∇ r←ListComments req;n
       n←0 Number req.PathParams.number
-      :If ⍬≡Issue n ⋄ r←NotFound req ⋄ →0 ⋄ :EndIf
-      r←#.Db.Doc(⊂'SELECT list_comments(',I,', ',I,', ',I,')'),n,Page req
+      r←#.Db.Doc(⊂'SELECT list_comments(number, ',I,', ',I,') FROM issues WHERE number = ',I),(Page req),n
+      :If r≡⍬ ⋄ r←NotFound req ⋄ :EndIf
     ∇
 
-    ∇ r←CreateComment req;n;body;id
-      n←0 Number req.PathParams.number
+    ∇ r←CreateComment req;body
       body←req.Payload Text'body'
-      :If ⍬≡Issue n ⋄ r←NotFound req ⋄ →0 ⋄ :EndIf
       :If 0=≢body ⋄ r←'IssueComment'Invalid req'body' 'missing_field' ⋄ →0 ⋄ :EndIf
-      id←⊃#.Db.Do('INSERT INTO comments (issue_number, body) VALUES (',I,', ',T,') RETURNING id')n body
+      r←#.Db.Doc('SELECT create_comment(',I,', ',T,')')(0 Number req.PathParams.number)body
+      :If r≡⍬ ⋄ r←NotFound req ⋄ →0 ⋄ :EndIf
       req.SetStatus 201
-      r←#.Db.Doc('SELECT doc FROM comment_doc WHERE id = ',I)id
     ∇
 
 ⍝ ── Helpers ─────────────────────────────────────────────────────────────
