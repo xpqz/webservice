@@ -2,7 +2,7 @@
 
 By: stefan@dyalog.com
 
-My aim today is to build a fairly complete, reasonably scalable, (but ultimately still a toy) webservice where Dyalog APL's Jarvis functions as the application server holding the business logic. I want to demonstrate an architecture pattern, rather than the code itself in detail so that you could get started with exposing your particular business data via an API. The application we walk through below should be runnable; you can check out the final state in its GitHub repository on [Dyalog Labs](https://github.com/dyalog-labs). TBD!
+My aim today is to build a fairly complete, reasonably scalable, (but ultimately still a toy) webservice where Dyalog APL's Jarvis functions as the application server holding the business logic. I want to demonstrate an architecture pattern, rather than the code itself in detail so that you could get started with exposing your particular business data via an API. The application we walk through below should be runnable; you can check out the final state in its GitHub repository, [xpqz/webservice](https://github.com/xpqz/webservice).
 
 The title talks about "building from standard parts" -- what does that even mean? As APLers, traditionally, many of us choose to "live in the session", and build every aspect of our systems in APL. This approach has served us well, and the advantage is that an APLer then can retain a good working knowledge of every part of their system. The disadvantage is that we forego the investment and development that has gone into non-APL system building blocks, and that we risk re-inventing the wheel, or solving problems that has already been solved in other contexts. 
 
@@ -175,6 +175,29 @@ Here is the system architecture diagram:
 ![The pattern: client → nginx → N identical APL workers → database](figures/pattern.svg)
 
 Of this stack, only about 180 lines are APL code, plus about 110 lines of APLAN that describe the API; everything else is configuration of hardened components that thousands of teams already run.
+
+### Images, containers, services, replicas and volumes
+
+Five Docker terms carry the rest of this post:
+
+- An **image** is a packaged, read-only filesystem plus a start command: an operating system, the software installed on it, and our files. It is either built from a recipe (a `Dockerfile`) or downloaded ready-made (`postgres:17`, `nginx:1.29`).
+- A **container** is a running instance of an image: a process with its own private filesystem and network address. Remove a container and whatever it wrote is gone; a new one from the same image starts from the same clean state.
+- A **service** is a named entry in `compose.yaml`: which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
+- A **replica** is one of several containers running the same service. `--scale worker=3` starts three identical worker containers, and the name `worker` then resolves to all three addresses. That's what nginx balances across.
+- A **volume** is storage that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives restarts and rebuilds (`docker compose down -v` deletes it). Configuration is mounted the same way, read-only, straight from the repository: `nginx.conf`, `db/init`, `console/`.
+
+### One request, end to end
+
+Here is what happens when you run `curl localhost:8080/issues/14`:
+
+1. Docker forwards port 8080 on your machine to port 80 in the `nginx` container. That is the only way in.
+2. nginx asks Docker's DNS for `worker`, gets the address of every replica, and passes the request to the next one in turn.
+3. In that worker, Jarvis reads the HTTP request, and Stark matches it to the route `GET /issues/{number}`, calling `Api.GetIssue` with the number `'14'`.
+4. `GetIssue` turns `'14'` into an integer and sends one query over the worker's ODBC connection to `postgres:5432`: `SELECT doc FROM issue_doc WHERE number = :<I:`, with 14 bound separately.
+5. Postgres builds the issue's JSON in the `issue_doc` view, from tables stored in the `pgdata` volume, and returns it as one row.
+6. The worker parses the row, Jarvis sends it back as the HTTP response, nginx adds the `X-Worker` header on the way out, and curl prints the result.
+
+A write takes the same path; only step 4 changes, to a call to a database function such as `update_issue`. The sections that follow each zoom in on part of this path.
 
 ### nginx
   - Single "front door".
