@@ -6,7 +6,7 @@ My aim today is to build a fairly complete, reasonably scalable, (but ultimately
 
 The title talks about "building from standard parts" -- what does that even mean? As APLers, traditionally, many of us choose to "live in the session", and build every aspect of our systems in APL. This approach has served us well, and the advantage is that an APLer then can retain a good working knowledge of every part of their system. The disadvantage is that we forego the investment and development that has gone into non-APL system building blocks, and that we risk re-inventing the wheel, or solving problems that has already been solved in other contexts. 
 
-Service oriented systems today are often built from standard building blocks, a bit like lego bricks, requiring configuration only to piece together. Grab an off-the-shelf database, a load balancer, perhaps a message queue, distributed search, a firewall, run it in containers using an established orchestrator, drive it all from git etc. Systems built this way are said to be _composable_ -- we add more scaling axes. 
+Service oriented systems today are often built from standard building blocks, a bit like lego bricks, requiring configuration only to piece together. Grab an off-the-shelf database, a load balancer, perhaps a message queue, distributed search, a firewall, run it in containers using an established orchestrator, drive it all from git etc. Systems built this way are said to be _composable_. 
 
 An orchestrator lets you add or remove capacity as the need changes. The one we'll use today, [Docker Compose](https://docs.docker.com/compose/), runs everything on a single machine: scaling there means starting more processes on that host. Spreading the same containers across several machines, and surviving the loss of one, is what orchestrators like [Kubernetes](https://kubernetes.io/) are for; the containers we build here would move there unchanged. 
 
@@ -560,7 +560,7 @@ In our case, I put the rules next to the data because that kept the APL short an
 
 We now have a language agnostic, RESTful API, fully described by an OpenAPI specification. Any system that can speak HTTP can consume our API. The fact that our business logic is implemented in APL is of no concern to any user. Our API is equally happy to serve command-line clients, like curl, and full-blown GUIs. If we want to consume our API from Dyalog APL, we can generate an APL client from the OpenAPI spec using our [OpenAPI generator](https://github.com/dyalog-labs/OpenAPI). 
 
-However, wouldn't it be nice to have a GUI client to use with this? Making JavaScript interfaces has become cheap in the LLM eras, and I used Claude Code to build a simple but effective client. I wanted it to be a javascript application, only talking REST to our API, rather than a server-generated application talking to the backend on our behalf. 
+However, wouldn't it be nice to have a GUI client to use with this? Making JavaScript interfaces has become cheap in the LLM eras, and I used [Claude Code](https://code.claude.com/docs/en/overview) to build a simple but effective client. I wanted it to be a javascript application, only talking REST to our API, rather than a server-generated application talking to the backend on our behalf. 
 
 The architecture:
 
