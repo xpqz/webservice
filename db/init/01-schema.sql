@@ -67,46 +67,57 @@ CREATE TRIGGER issues_state BEFORE UPDATE ON issues FOR EACH ROW EXECUTE FUNCTIO
 -- runs as one transaction: it happens completely or not at all. Label rows
 -- are locked (FOR SHARE) while in use, so a concurrent delete waits.
 
--- Lock the named labels; return how many of the names don't exist.
--- names is a JSON array of label names; NULL means none.
-CREATE FUNCTION lock_labels(names json) RETURNS int
+-- Lock the named labels. An unknown name is an error (SQLSTATE 23503),
+-- which undoes the whole call. names is a JSON array of label names;
+-- NULL means none.
+CREATE FUNCTION lock_labels(names json) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE wanted text[];
 BEGIN
     SELECT coalesce(array_agg(DISTINCT lower(x)), '{}') INTO wanted FROM json_array_elements_text(names) x;
     PERFORM 1 FROM labels WHERE lower(name) = ANY (wanted) FOR SHARE;
-    RETURN cardinality(wanted) - (SELECT count(*) FROM labels WHERE lower(name) = ANY (wanted));
+    IF cardinality(wanted) > (SELECT count(*) FROM labels WHERE lower(name) = ANY (wanted)) THEN
+        RAISE foreign_key_violation USING MESSAGE = 'unknown label';
+    END IF;
 END $$;
 
+-- Each write below answers with the issue's document, read in the same
+-- transaction, so the answer is exactly what was written. No row means
+-- there is no such issue.
+
 -- Attach labels to issue n, optionally replacing its current set.
--- Returns 0 when done, -1 if there is no such issue, or the number of
--- unknown names (and changes nothing).
-CREATE FUNCTION set_issue_labels(n int, names json, replace boolean) RETURNS int
+CREATE FUNCTION set_issue_labels(n int, names json, replace boolean) RETURNS SETOF json
 LANGUAGE plpgsql AS $$
-DECLARE unknown int;
 BEGIN
     PERFORM 1 FROM issues WHERE number = n FOR UPDATE;
-    IF NOT FOUND THEN RETURN -1; END IF;
-    unknown := lock_labels(names);
-    IF unknown > 0 THEN RETURN unknown; END IF;
+    IF NOT FOUND THEN RETURN; END IF;
+    PERFORM lock_labels(names);
     IF replace THEN DELETE FROM issue_labels WHERE issue_number = n; END IF;
     INSERT INTO issue_labels (issue_number, label_id)
         SELECT n, id FROM labels
          WHERE lower(name) IN (SELECT lower(x) FROM json_array_elements_text(names) x)
         ON CONFLICT DO NOTHING;
-    RETURN 0;
+    RETURN QUERY SELECT doc FROM issue_doc WHERE number = n;
 END $$;
 
--- Create an issue with its labels. Returns the new number, or 0 (and
--- creates nothing) if any label name is unknown.
-CREATE FUNCTION create_issue(new_title text, new_body text, names json) RETURNS int
+-- Create an issue with its labels.
+CREATE FUNCTION create_issue(new_title text, new_body text, names json) RETURNS json
 LANGUAGE plpgsql AS $$
 DECLARE n int;
 BEGIN
-    IF lock_labels(names) > 0 THEN RETURN 0; END IF;
+    PERFORM lock_labels(names);    -- before the insert, so a failure doesn't use up a number
     INSERT INTO issues (title, body) VALUES (new_title, NULLIF(new_body, '')) RETURNING number INTO n;
-    PERFORM set_issue_labels(n, names, true);
-    RETURN n;
+    RETURN (SELECT * FROM set_issue_labels(n, names, true));
+END $$;
+
+-- Take one label off issue n; no row if the issue doesn't have it.
+CREATE FUNCTION remove_issue_label(n int, label_name text) RETURNS SETOF json
+LANGUAGE plpgsql AS $$
+BEGIN
+    DELETE FROM issue_labels il USING labels l
+     WHERE il.label_id = l.id AND il.issue_number = n AND lower(l.name) = lower(label_name);
+    IF NOT FOUND THEN RETURN; END IF;
+    RETURN QUERY SELECT doc FROM issue_doc WHERE number = n;
 END $$;
 
 -- GitHub's timestamp format: 2026-10-20T14:03:12Z
@@ -173,21 +184,21 @@ LANGUAGE sql STABLE AS $$
 $$;
 
 -- Change the given fields of an issue; '' means "leave as it is", and
--- names NULL leaves the labels as they are. Returns 1 when done, 0 if there
--- is no such issue, -1 (and changes nothing) if any label name is unknown.
-CREATE FUNCTION update_issue(n int, new_title text, new_body text, new_state text, new_reason text, names json) RETURNS int
+-- names NULL leaves the labels as they are. Answers with the issue's
+-- document; no row if there is no such issue.
+CREATE FUNCTION update_issue(n int, new_title text, new_body text, new_state text, new_reason text, names json) RETURNS SETOF json
 LANGUAGE plpgsql AS $$
 BEGIN
     PERFORM 1 FROM issues WHERE number = n FOR UPDATE;
-    IF NOT FOUND THEN RETURN 0; END IF;
-    IF lock_labels(names) > 0 THEN RETURN -1; END IF;
+    IF NOT FOUND THEN RETURN; END IF;
+    PERFORM lock_labels(names);
     UPDATE issues SET title        = coalesce(NULLIF(new_title, ''), title),
                       body         = coalesce(NULLIF(new_body, ''), body),
                       state        = coalesce(NULLIF(new_state, ''), state),
                       state_reason = coalesce(NULLIF(new_reason, ''), state_reason)
      WHERE number = n;
     IF names IS NOT NULL THEN PERFORM set_issue_labels(n, names, true); END IF;
-    RETURN 1;
+    RETURN QUERY SELECT doc FROM issue_doc WHERE number = n;
 END $$;
 
 -- Writes that answer with the document they made: the write and the read
