@@ -182,9 +182,9 @@ If you're unfamiliar with Docker's terminology, here are some terms I'll be usin
 
 - An [**image**](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/) is a packaged, read-only filesystem plus a start command: the operating system's tools and libraries, the software installed on them, and our files. It is either built from a recipe (a [**Dockerfile**](https://docs.docker.com/reference/dockerfile/)) or downloaded ready-made (`postgres:17`, `nginx:1.29`).
 - A [**container**](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/) is a running instance of an image: a process with its own private filesystem and network address. Stopping or restarting a container keeps what it wrote; removing it discards everything it wrote outside mounted storage, and a new one from the same image starts from the same clean state.
-- A [**service**](https://docs.docker.com/reference/compose-file/services/) is a named entry in [`compose.yaml`](https://github.com/xpqz/webservice/blob/main/compose.yaml): which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
+- A [**service**](https://docs.docker.com/reference/compose-file/services/) is a named entry in [compose.yaml](https://github.com/xpqz/webservice/blob/main/compose.yaml): which image to run, with which settings, ports and dependencies. We have four: `postgres`, `worker`, `nginx` and `console`. The service name doubles as a hostname on the private network Compose creates, so `postgres` is how a worker finds the database.
 - A [**replica**](https://docs.docker.com/reference/compose-file/deploy/#replicas) is one of several containers running the same service. `--scale worker=3` starts three identical worker containers, and the name `worker` then resolves to all three addresses. That's what nginx balances across.
-- A [**volume**](https://docs.docker.com/engine/storage/volumes/) is storage managed by Docker that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives container removal and recreation (`docker compose down -v` deletes it). We also use [**bind mounts**](https://docs.docker.com/engine/storage/bind-mounts/) to make files from the repository available inside containers, read-only: [`nginx.conf`](https://github.com/xpqz/webservice/blob/main/nginx/nginx.conf), [`db/init`](https://github.com/xpqz/webservice/tree/main/db/init) and [`console/`](https://github.com/xpqz/webservice/tree/main/console). Both are set with the same `volumes:` key in [`compose.yaml`](https://github.com/xpqz/webservice/blob/main/compose.yaml).
+- A [**volume**](https://docs.docker.com/engine/storage/volumes/) is storage managed by Docker that outlives containers. Postgres keeps its data in the `pgdata` volume, so the database survives container removal and recreation (`docker compose down -v` deletes it). We also use [**bind mounts**](https://docs.docker.com/engine/storage/bind-mounts/) to make files from the repository available inside containers, read-only: [nginx.conf](https://github.com/xpqz/webservice/blob/main/nginx/nginx.conf), [db/init](https://github.com/xpqz/webservice/tree/main/db/init) and [console/](https://github.com/xpqz/webservice/tree/main/console). Both are set with the same `volumes:` key in [compose.yaml](https://github.com/xpqz/webservice/blob/main/compose.yaml).
 
 Docker has exceptional [documentation](https://docs.docker.com/). 
 
@@ -214,7 +214,7 @@ A write takes the same path; only step 4 changes, to a call to a database functi
   - Config options for TLS, gzip, timeouts, request-size limits, buffering slow clients, rate limiting, caching, static files and more.
   - Your APL process never faces the internet directly.
 
-This is the entire configuration, [`nginx/nginx.conf`](https://github.com/xpqz/webservice/blob/main/nginx/nginx.conf):
+This is the entire configuration, [nginx/nginx.conf](https://github.com/xpqz/webservice/blob/main/nginx/nginx.conf):
 
 ```nginx
 events {}
@@ -253,7 +253,7 @@ None of this involves our application. nginx never looks inside a request; it wo
   - Isolation: workers and database aren't reachable from outside.
   - The same images move seamlessly to Kubernetes or a cloud runtime later.
 
-This is the whole system, [`compose.yaml`](https://github.com/xpqz/webservice/blob/main/compose.yaml):
+This is the whole system, [compose.yaml](https://github.com/xpqz/webservice/blob/main/compose.yaml):
 
 ```yaml
 services:
@@ -332,7 +332,7 @@ docker compose up -d --build --scale worker=3 --wait
 ### The container image
   - The image is [Debian](https://www.debian.org/), plus Dyalog's own `.deb` Linux package, plus an ODBC driver, plus Jarvis and Stark. Builds natively on arm64 and x86.
 
-This is [`worker/Dockerfile`](https://github.com/xpqz/webservice/blob/main/worker/Dockerfile), the recipe for a worker:
+This is [worker/Dockerfile](https://github.com/xpqz/webservice/blob/main/worker/Dockerfile), the recipe for a worker:
 
 ```dockerfile
 # A worker is plain Debian plus four packages:
