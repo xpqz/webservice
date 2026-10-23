@@ -16,7 +16,7 @@ We're going to build our application using Docker Compose as our orchestration f
 
 I will assume broad familiarity with HTTP and JSON and that you are somewhat comfortable typing commands into a terminal. I will also assume you know your way around Jarvis. 
 
-We're building this in Docker containers but won't go to deep on Docker beyond using it. I will be treating the database as a black box, but if you are interested in its schema, you can examine that in the repository. If reading tiny bits of SQL doesn't put you off your breakfast, that helps, too.
+We're building this in Docker containers but won't go too deep on Docker beyond using it. I will be treating the database as a black box, but if you are interested in its schema, you can examine that in the repository. If reading tiny bits of SQL doesn't put you off your breakfast, that helps, too.
 
 Inevitably, this contains tools and components that are uncommon in use in typical APL shops. I will try to introduce such briefly and suggest further reading. Two tools we'll be calling on occasionally are [curl](https://curl.se/) and [jq](https://jqlang.org/). `curl` is a command-line HTTP client; think of it as Dyalog's [HttpCommand](https://dyalog.github.io/HttpCommand/), but for the terminal. 
 
@@ -350,11 +350,11 @@ The whole system so far involves no code, only configuration of our three "lego 
 
 ## Stateless workers
 
-One of the key ideas here is that the APL workers are completely stateless. Any worker can answer any request. All state is the responsibility of the database layer. This means that we need not think about threading or locking sections to protect against concurrent updates; this is postgresql's job, and it's very good at it. For that to hold, each request that writes does so in a single database call. Creating an issue together with its labels, for example, is one call to a database function, and so one transaction: it either happens completely or not at all, whatever other workers are doing at the same moment. 
+One of the key ideas here is that the APL workers are completely stateless. Any worker can answer any request. All state is the responsibility of the database layer. There are no threads to coordinate and no critical sections to guard in the APL. That doesn't mean concurrency needs no thought; it means the thinking happens in the database, where transactions and locks are the tools for it, and postgresql is very good at it. Here, each request is one call to the database, and so one transaction. Creating an issue together with its labels, for example, is one call to a database function: it either happens completely or not at all. The function also locks the labels it attaches (`FOR SHARE`), so another worker can't delete one halfway through. One call per request is a convenience of this example, not a rule: a transaction can span several calls, and postgresql's [isolation levels](https://www.postgresql.org/docs/17/transaction-iso.html) decide what concurrent transactions can see of each other. 
 
 In some respects, this cuts against APL habits (a long-lived workspace accumulating state), but for an application like this, it makes everything easier to reason about, and to scale. The one job of our APL layer is to take the incoming request, convert it to a SQL query, send this query to the database, and return the results. Done. 
 
-The database layer provides another scalability dimension to a system like this. We're running a single postgresql note, but it has built-in clustering facilities, support for split reads and writes etc. How much load a single database can take depends on the queries and the hardware, so it has to be measured rather than guessed. Replication, routing reads to replicas, and scaling writes are each design decisions with their own trade-offs (PostgreSQL's [overview](https://www.postgresql.org/docs/17/high-availability.html) is a good start), and they are outside the scope of this example. 
+The database layer provides another scalability dimension to a system like this. We're running a single postgresql node, but it has built-in clustering facilities, support for split reads and writes etc. How much load a single database can take depends on the queries and the hardware, so it has to be measured rather than guessed. Replication, routing reads to replicas, and scaling writes are each design decisions with their own trade-offs (PostgreSQL's [overview](https://www.postgresql.org/docs/17/high-availability.html) is a good start), and they are outside the scope of this example. 
 
 ## The APL layer
 
@@ -470,7 +470,7 @@ Creating an issue follows the same pattern, with a little more checking first:
 ∇
 ```
 
-Jarvis has parsed the JSON body into `req.Payload`. `Text` reads a text field from it, refusing anything that isn't text, and `Json` does the same for the list of label names. If the title is missing we answer with GitHub's validation error. Otherwise it's one call to the database function `create_issue`, which creates the issue, attaches its labels and returns the new issue's document, all in one transaction. If a label doesn't exist, the function fails, nothing is created, and we answer with the same validation error.
+Jarvis has parsed the JSON body into `req.Payload`. `Text` reads a text field from it, refusing anything that isn't text, and `Json` does the same for the list of label names. If the title is missing we answer with GitHub's validation error. Otherwise it's one call to the database function `create_issue`, which creates the issue, attaches its labels and returns the new issue's document, all in one transaction. If a label doesn't exist, the function fails, nothing is created, and we answer with the same validation error. To keep the example short, the trap treats any database error as a bad label; a production handler would check for the one SQLSTATE it expects (`23503` here) and let anything else through as a server error.
 
 That validation error comes from a three-line helper:
 
@@ -543,11 +543,11 @@ Here are some screenshots of what it looks like, with our data set being importe
 
 ![First screen](figures/console-issue.png)
 
-The next screen hows #14 "Support multiple items in a single source file" open, with discuss, enhancement and MID labels and two comments. Its GET /issues/14 entry is expanded in the log to show the raw JSON response.
+The next screen shows #14 "Support multiple items in a single source file" open, with discuss, enhancement and MID labels and two comments. Its GET /issues/14 entry is expanded in the log to show the raw JSON response.
 
 ![Another screen](figures/console-request-log.png)
 
-The console is a separate client that runs entirely in the browser and knows the service only through its public REST API. All network traffic goes through a single function, `call(method, path, body)` in `api.js`, which wraps fetch, turns API errors into exceptions that carry GitHub's message and field errors, and records every request and response in a capped, reactive log. That log is what the request panel displays, so the console doubles as a window onto the API. The UI is four small components (issue list, issue view, issue form, request log) coordinated by one shared reactive store. The store holds which issue is open, whether a new one is being written, the label filter, and a change counter that the list watches so it reloads after any edit. Every piece of state the console shows is fetched from the API, and nothing is kept locally, so the page always reflects the service and any other client could do the same job.
+The console is a separate client that runs entirely in the browser and knows the service only through its public REST API. All network traffic goes through a single function, `call(method, path, body)` in `api.js`, which wraps fetch, turns API errors into exceptions that carry GitHub's message and field errors, and records every request and response in a capped, reactive log. That log is what the request panel displays, so the console doubles as a window onto the API. The UI is four small components (issue list, issue view, issue form, request log) coordinated by one shared reactive store. The store holds which issue is open, whether a new one is being written, the label filter, and a change counter that the list watches so it reloads after any edit. Every piece of state the console shows is fetched from the API, and nothing is kept locally: the console makes each change through the API and then reloads the views it affects. It doesn't poll, so changes made by another client show up on the next reload. Any other client could do the same job.
 
 Here is the heart of `call()`, trimmed of the bookkeeping for the request log. It's the browser's own `fetch`, sending and receiving JSON, the same exchange `curl` had with the API earlier:
 
@@ -567,12 +567,19 @@ export async function call(method, path, body) {
 }
 ```
 
-And here is how the issue view uses it, from `app.js`. Loading an issue is two GETs; closing one, or adding a comment, is one call followed by a reload:
+And here is how the issue view uses it, from `app.js`. Loading an issue is two GETs, sent in parallel; closing one, or adding a comment, is one call followed by a reload. Responses can arrive out of order, so only the latest load may update the view:
 
 ```js
+let latest = 0
 async function load() {
-  issue.value = await call('GET', `/issues/${store.selected}`)
-  comments.value = await call('GET', `/issues/${store.selected}/comments?per_page=100`)
+  const number = store.selected, mine = ++latest
+  try {
+    const [i, c] = await Promise.all([
+      call('GET', `/issues/${number}`),
+      call('GET', `/issues/${number}/comments?per_page=100`),
+    ])
+    if (mine === latest) { issue.value = i; comments.value = c; error.value = '' }
+  } catch (e) { if (mine === latest) error.value = describe(e) }
 }
 
 const setState = state => change(() => call('PATCH', `/issues/${issue.value.number}`, { state }))
@@ -590,7 +597,7 @@ The template wires those to the page:
 <button v-else @click="setState('open')">Reopen</button>
 ```
 
-Clicking `Close` sends `PATCH /issues/14` with `{"state":"closed"}`, exactly the request we made with `curl`. The response, with `closed_at` and `state_reason` filled in by the database, is what the page shows next. Nothing in the console knows or cares that the other end is APL.
+Clicking `Close` sends `PATCH /issues/14` with `{"state":"closed"}`, exactly the request we made with `curl`. The database fills in `closed_at` and `state_reason`, and the reload that follows shows them. Nothing in the console knows or cares that the other end is APL.
 
 The beauty of an "API first" approach is that there is nothing special about the console webapp. It has no privileged access, nothing provided to it from the server end (well, save a few static files). It simply talks to the same API like `curl` or `HttpCommand` would do.
 
