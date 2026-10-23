@@ -106,17 +106,18 @@ const IssueView = {
   setup() {
     const issue = ref(null), comments = ref([]), comment = ref(''), error = ref(''), editing = ref(false)
 
-    // Fetch the issue that is selected now; drop the results if the selection moves on meanwhile
+    // Fetch the selected issue. Responses can arrive out of order, even for
+    // the same issue; only the latest request may update the view
+    let latest = 0
     async function load() {
-      const number = store.selected
+      const number = store.selected, mine = ++latest
       try {
         const [i, c] = await Promise.all([
           call('GET', `/issues/${number}`),
           call('GET', `/issues/${number}/comments?per_page=100`),
         ])
-        if (number !== store.selected) return
-        issue.value = i; comments.value = c; error.value = ''
-      } catch (e) { if (number === store.selected) error.value = describe(e) }
+        if (mine === latest) { issue.value = i; comments.value = c; error.value = '' }
+      } catch (e) { if (mine === latest) error.value = describe(e) }
     }
 
     // Run a change, then refresh this issue and the list
@@ -129,7 +130,8 @@ const IssueView = {
       if (await change(() => call('POST', `/issues/${issue.value.number}/comments`, { body: comment.value }))) comment.value = ''
     }
 
-    watch(() => store.selected, () => { editing.value = false; load() }, { immediate: true })
+    // A new selection hides the previous issue, so its buttons can't act on it
+    watch(() => store.selected, () => { editing.value = false; issue.value = null; load() }, { immediate: true })
     return { issue, comments, comment, error, editing, setState, addComment, load, when, store }
   },
   template: `
