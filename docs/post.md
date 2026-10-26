@@ -26,7 +26,7 @@ Inevitably, this touches tools and components that are uncommon in use in typica
 
 If you're coding along, you may want to install those if they didn't come with your system already. 
 
-> **Note**: on Microsoft Windows, you need [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/), and it must be running. The `docker` commands work in any terminal, but the `curl` examples and the repository's scripts are written for a Unix shell (bash). The smoothest route is a Linux distribution under [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install), such as Ubuntu, with Docker Desktop's WSL integration turned on for it (Settings → Resources → WSL integration), and jq installed there (`sudo apt install jq` on Ubuntu). Everything below then works exactly as written. Git Bash, which comes with [Git for Windows](https://gitforwindows.org/), works too, with one catch: Git's own `curl` turns non-ASCII characters on the command line into `?`, so the APL glyph in one of the examples below would be stored as `?`. Run `alias curl=/c/Windows/System32/curl.exe` first to use Windows' own curl, which doesn't have that problem. Install jq with `winget install jqlang.jq` and open a new terminal. The examples won't paste into PowerShell or cmd, which quote differently (and in Windows PowerShell, `curl` is another command entirely).
+> **Note**: on Microsoft Windows, you need [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/), and it must be running. The `docker` commands work in any terminal, but the `curl` examples and the repository's scripts are written for a Unix shell (bash). The smoothest route is a Linux distribution under [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install), such as Ubuntu, with Docker Desktop's WSL integration turned on for it (Settings → Resources → WSL integration), and jq installed there (`sudo apt install jq` on Ubuntu). Everything below then works exactly as written. Git Bash, which comes with [Git for Windows](https://gitforwindows.org/), works too, with one catch: Git's own `curl` turns non-ASCII characters on the command line into `?`, so the APL glyph in one of the examples below would be stored as `?`. Run `alias curl=/c/Windows/System32/curl.exe` first to use Windows' own curl, which doesn't have that problem. Install jq with `winget install jqlang.jq` and open a new terminal. The `curl` examples won't work in PowerShell, which quotes arguments differently, but after them you'll find the same requests written for PowerShell.
 
 > **Note**: on Linux with plain Docker Engine (rather than Docker Desktop), `docker` commands fail with "permission denied" on `/var/run/docker.sock` until your user is in the `docker` group: run `sudo usermod -aG docker $USER`, then log out and back in. Be aware that membership of that group amounts to root access on the machine.
 
@@ -158,6 +158,37 @@ X-Worker: 172.18.0.4:8080
 X-Worker: 172.18.0.6:8080
 X-Worker: 172.18.0.5:8080
 ```
+
+**The same from PowerShell**
+
+The `curl` commands above are written for bash. On Windows, here are the same interactions for PowerShell, which comes with Windows. `irm` (`Invoke-RestMethod`) sends the request and turns the JSON response into objects, so there's no need for jq; `iwr` (`Invoke-WebRequest`) also gives access to the status and headers. Without the `charset=utf-8`, Windows PowerShell sends the `⍸` as `?`.
+
+```powershell
+$api  = 'http://localhost:8080'
+$json = 'application/json; charset=utf-8'
+
+# Create a label, then an issue that uses it
+irm -Method Post $api/labels -ContentType $json -Body '{"name":"performance","color":"5319e7"}' | ft
+irm -Method Post $api/issues -ContentType $json -Body '{"title":"⍸ is slow on long Boolean vectors","body":"Takes 2 s on 1E8 elements","labels":["performance"]}' | fl
+
+# Read it back, with the status and the worker that answered
+$r = iwr $api/issues/41 -UseBasicParsing; $r.StatusCode; $r.Headers['X-Worker']
+
+# Close it
+irm -Method Patch $api/issues/41 -ContentType $json -Body '{"state":"closed"}' | fl number, state, state_reason, closed_at
+
+# List with filters
+irm "$api/issues?state=closed&labels=performance" | ft number, title, state
+
+# Errors: PowerShell throws on a 4xx status; the response body is in the error
+try { irm -Method Post $api/issues -ContentType $json -Body '{"body":"no title"}' } catch { $_.ErrorDetails.Message; [int]$_.Exception.Response.StatusCode }
+try { irm $api/issues/99999 } catch { $_.ErrorDetails.Message; [int]$_.Exception.Response.StatusCode }
+
+# Load balancing
+1..4 | % { (iwr $api/health -UseBasicParsing).Headers['X-Worker'] }
+```
+
+The `ft` (table) and `fl` (list) at the ends of lines set how each result is displayed; without them, pasting the whole block at once can show some results as blank rows.
 
 **The same from APL, with HttpCommand**
 
