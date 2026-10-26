@@ -8,7 +8,12 @@ set -euo pipefail
 BASE=${BASE:-http://localhost:8080}
 DATA="$(dirname "$0")/link-issues.json"
 
-post() { curl -sf -X "$1" "$BASE$2" -H 'Content-Type: application/json' --data-binary "$3"; }
+# The body is piped in, not passed as an argument: on Windows, Git Bash's curl
+# turns non-ASCII arguments into '?'.
+post() { printf '%s' "$3" | curl -sf -X "$1" "$BASE$2" -H 'Content-Type: application/json' --data-binary @-; }
+
+# A native Windows jq.exe ends its output lines with CRLF.
+jq() { command jq "$@" | tr -d '\r'; }
 
 jq -c '.labels[]' "$DATA" | while read -r label; do
     post POST /labels "$label" >/dev/null

@@ -41,6 +41,8 @@ docker compose up -d --build --scale worker=3 --wait
 db/seed/load.sh                     # optional: demo data, 40 real issues from Dyalog/link
 ```
 
+On Windows, use Docker Desktop (it must be running) and run the commands in a WSL2 distribution with Docker Desktop's WSL integration turned on, or in Git Bash. In Git Bash, install jq (`winget install jqlang.jq`), and run `alias curl=/c/Windows/System32/curl.exe` before trying the examples below: Git's own curl turns non-ASCII characters in arguments into `?`. The scripts need bash, curl and jq, and run in either shell. The examples are bash and won't paste into PowerShell or cmd.
+
 `--wait` returns once Postgres, the workers and nginx all report healthy. Then:
 
 - **API:** <http://localhost:8080>, for example `curl -s localhost:8080/issues | jq .`

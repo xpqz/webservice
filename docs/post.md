@@ -26,7 +26,7 @@ Inevitably, this touches tools and components that are uncommon in use in typica
 
 If you're coding along, you may want to install those if they didn't come with your system already. 
 
-> **Note**: if you're set up with [Docker Desktop on Microsoft Windows](https://docs.docker.com/desktop/setup/install/windows-install/), the stuff we're doing here "should just work". However, Docker on Windows already rely on [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install), and you may just be better running in WSL2 directly. 
+> **Note**: on Microsoft Windows, you need [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/), and it must be running. The `docker` commands work in any terminal, but the `curl` examples and the repository's scripts are written for a Unix shell (bash). The smoothest route is a Linux distribution under [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install), such as Ubuntu, with Docker Desktop's WSL integration turned on for it (Settings → Resources → WSL integration), and jq installed there (`sudo apt install jq` on Ubuntu). Everything below then works exactly as written. Git Bash, which comes with [Git for Windows](https://gitforwindows.org/), works too, with one catch: Git's own `curl` turns non-ASCII characters on the command line into `?`, so the APL glyph in one of the examples below would be stored as `?`. Run `alias curl=/c/Windows/System32/curl.exe` first to use Windows' own curl, which doesn't have that problem. Install jq with `winget install jqlang.jq` and open a new terminal. The examples won't paste into PowerShell or cmd, which quote differently (and in Windows PowerShell, `curl` is another command entirely).
 
 ## The application
 

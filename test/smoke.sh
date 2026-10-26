@@ -13,8 +13,11 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 req() {
     : > "$TMP/b"; : > "$TMP/h"
     local args=(-s -X "$1" -D "$TMP/h" -o "$TMP/b" -w '%{http_code}')
-    [ $# -ge 3 ] && args+=(-H 'Content-Type: application/json' --data-binary "$3")
-    STATUS=$(curl "${args[@]}" "$BASE$2")
+    # The body is piped in, not passed as an argument: on Windows, Git Bash's
+    # curl turns non-ASCII arguments into '?', and long ones exceed the length
+    # limit. (Not a here-string either: Git Bash hangs on one of just over 64 KB.)
+    [ $# -ge 3 ] && args+=(-H 'Content-Type: application/json' --data-binary @-)
+    STATUS=$(printf '%s' "${3-}" | curl "${args[@]}" "$BASE$2")
     BODY=$(cat "$TMP/b"); HEADERS=$(tr -d '\r' < "$TMP/h")
 }
 
@@ -24,7 +27,9 @@ expect_eq() {
     else echo "  FAIL $1: got [$2] want [$3]"; FAILS=$((FAILS+1)); fi
 }
 
-jqb() { jq -r "$1" <<<"$BODY"; }
+# A native Windows jq.exe ends its output lines with CRLF.
+jq() { command jq "$@" | tr -d '\r'; }
+jqb() { printf '%s' "$BODY" | jq -r "$1"; }   # bodies can be large; see req
 
 test_health() {
     req GET /health
@@ -382,7 +387,7 @@ test_non_bmp_round_trips() {
 }
 
 # A JSON string of n characters
-long_text() { python3 -c "import sys; print('x'*int(sys.argv[1]))" "$1"; }
+long_text() { printf '%*s' "$1" '' | tr ' ' x; }
 
 test_null_fields() {
     new_issue "{\"title\":\"nulls $RUN\",\"body\":null}"
