@@ -316,7 +316,8 @@ conforms() {
 SPEC=""
 spec_schema() {   # spec_schema PATH METHOD STATUS
     [ -n "$SPEC" ] || SPEC=$(curl -s "$BASE/openapi.json")
-    jq -c --arg p "$1" --arg m "$2" --arg s "$3" '.paths[$p][$m].responses[$s].content["application/json"].schema' <<<"$SPEC"
+    # MSYS_NO_PATHCONV: Git Bash would otherwise rewrite /health as a Windows path
+    MSYS_NO_PATHCONV=1 jq -c --arg p "$1" --arg m "$2" --arg s "$3" '.paths[$p][$m].responses[$s].content["application/json"].schema' <<<"$SPEC"
 }
 
 test_openapi_metadata() {
