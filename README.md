@@ -32,7 +32,7 @@ A few design points:
 
 ## Installation
 
-You need Docker with Compose v2. The worker image builds natively on arm64 (including Apple Silicon) and x86-64. The first build downloads Dyalog and takes a few minutes; later builds are cached.
+You need Docker with Compose v2. The worker image builds natively on arm64 (including Apple Silicon) and x86-64. The first build downloads Dyalog and takes a few minutes; later builds are cached. On Linux with Docker Engine, your user must be in the `docker` group (`sudo usermod -aG docker $USER`, then log in again).
 
 ```bash
 git clone https://github.com/xpqz/webservice.git

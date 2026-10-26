@@ -15,7 +15,8 @@ req() {
     local args=(-s -X "$1" -D "$TMP/h" -o "$TMP/b" -w '%{http_code}')
     # The body is piped in, not passed as an argument: on Windows, Git Bash's
     # curl turns non-ASCII arguments into '?', and long ones exceed the length
-    # limit. (Not a here-string either: Git Bash hangs on one of just over 64 KB.)
+    # limit, as they do on Linux (128 KiB per argument). (Not a here-string
+    # either: Git Bash hangs on one of just over 64 KB.)
     [ $# -ge 3 ] && args+=(-H 'Content-Type: application/json' --data-binary @-)
     STATUS=$(printf '%s' "${3-}" | curl "${args[@]}" "$BASE$2")
     BODY=$(cat "$TMP/b"); HEADERS=$(tr -d '\r' < "$TMP/h")
@@ -267,6 +268,12 @@ test_comment_list() {
     expect_eq "comment list order" "$(jq -c '[.[].body]' <<<"$BODY")" '["one","two"]'
     req GET "/issues/$NUM/comments?per_page=1&page=2"
     expect_eq "comment list page 2" "$(jq -c '[.[].body]' <<<"$BODY")" '["two"]'
+}
+
+test_comment_list_empty() {
+    new_issue "{\"title\":\"no comments $RUN\"}"
+    req GET "/issues/$NUM/comments"
+    expect_eq "comments of issue without any" "$STATUS" 200
 }
 
 test_comment_unknown_issue() {

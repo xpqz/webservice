@@ -132,8 +132,9 @@
 
     ∇ r←ListComments req;n
       n←0 Number req.PathParams.number
-      r←#.Db.Doc(⊂'SELECT list_comments(number, ',I,', ',I,') FROM issues WHERE number = ',I),(Page req),n
-      :If r≡⍬ ⋄ r←NotFound req ⋄ :EndIf
+    ⍝ Wrapped in an object: an issue with no comments gives [], which parses to ⍬ too
+      r←#.Db.Doc(⊂'SELECT json_build_object(''comments'', list_comments(number, ',I,', ',I,')) FROM issues WHERE number = ',I),(Page req),n
+      :If r≡⍬ ⋄ r←NotFound req ⋄ :Else ⋄ r←r.comments ⋄ :EndIf
     ∇
 
     ∇ r←CreateComment req;body
